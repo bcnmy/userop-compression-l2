@@ -1,4 +1,4 @@
-# PoC for Calldata Compression on Layer 2 - Using Rage Trade's Transactions
+# PoC for Calldata Compression on Layer 2 - Eg: Using Rage Trade's Transactions
 ![image](https://github.com/bcnmy/l2-calldata-compression-poc/assets/16562513/8a833d40-bd66-4e10-bb7a-8376fdca777d)
 
 
