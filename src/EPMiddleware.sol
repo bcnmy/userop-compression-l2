@@ -3,11 +3,13 @@ pragma solidity ^0.8.23;
 
 import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
 import {AddressRegistry} from "./AddressRegistry.sol";
+import {IResolver} from "./resolver/IResolver.sol";
 
 contract EPMiddleware {
     IEntryPoint public ep;
     AddressRegistry public smartAccountRegistry = new AddressRegistry();
     AddressRegistry public paymasterRegistry = new AddressRegistry();
+    AddressRegistry public signatureRegistry = new AddressRegistry();
     AddressRegistry public dappSmartContractRegistry = new AddressRegistry();
 
     constructor(IEntryPoint _ep) {
@@ -40,7 +42,7 @@ contract EPMiddleware {
             let bitsToDiscard := sub(256, mul(NONCE_REPRESENTATION_PRECISION_BYTES, 8))
             key := shr(bitsToDiscard, calldataload(NONCE_LOAD_OFFSET))
         }
-        return ep.getNonce(sender, key) + 1;
+        return ep.getNonce(sender, key) | (key << 64);
     }
 
     // By definition, the pre-verification gas cannot be computed on-chain.
@@ -58,12 +60,12 @@ contract EPMiddleware {
         return preVerificationGas;
     }
 
-    // The verification gas limit can be approximated as the next greatest multiple of 50,000
+    // The verification gas limit can be approximated as the next greatest multiple of 5,000
     // Since SA/paymaster do not pay for unused gas (as of EPv0.6), this is a safe approximation.
-    // Assuming a maximum of 50M gas, we can bound it to 1 byte instead of the usual 32.
+    // Assuming a maximum of 1M gas, we can bound it to 1 byte instead of the usual 32.
     uint256 constant VERIFICATION_GAS_LIMIT_REPRESENTATION_PRECISION_BYTES = 1;
     uint256 constant VERIFICATION_GAS_LIMIT_LOAD_OFFSET = 53;
-    uint256 constant VERIFICATION_GAS_LIMIT_MULTIPLIER = 50000;
+    uint256 constant VERIFICATION_GAS_LIMIT_MULTIPLIER = 5000;
 
     function _resolveVerificationGasLimit() internal pure returns (uint256 verificationGasLimit) {
         assembly ("memory-safe") {
@@ -87,9 +89,9 @@ contract EPMiddleware {
     }
 
     // Assume multiplier of 0.01 gwei. With a upper limit of 500 gwei, we can bound it to 2 bytes.
-    uint256 constant MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_PRECISION_BYTES = 2;
+    uint256 constant MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_PRECISION_BYTES = 3;
     uint256 constant MAX_PRIORITY_FEE_PER_GAS_LOAD_OFFSET = 55;
-    uint256 constant MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER = 0.01 gwei;
+    uint256 constant MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER = 0.000001 gwei;
 
     function _resolveMaxPriorityFeePerGas() internal pure returns (uint256 maxPriorityFeePerGas) {
         assembly ("memory-safe") {
@@ -100,9 +102,9 @@ contract EPMiddleware {
     }
 
     // Similar for max fee per gas
-    uint256 constant MAX_FEE_PER_GAS_REPRESENTATION_PRECISION_BYTES = 2;
-    uint256 constant MAX_FEE_PER_GAS_LOAD_OFFSET = 57;
-    uint256 constant MAX_FEE_PER_GAS_MULTIPLIER = 0.01 gwei;
+    uint256 constant MAX_FEE_PER_GAS_REPRESENTATION_PRECISION_BYTES = 3;
+    uint256 constant MAX_FEE_PER_GAS_LOAD_OFFSET = 58;
+    uint256 constant MAX_FEE_PER_GAS_MULTIPLIER = 0.0001 gwei;
 
     function _resolveMaxFeePerGas() internal pure returns (uint256 maxFeePerGas) {
         assembly ("memory-safe") {
@@ -113,32 +115,111 @@ contract EPMiddleware {
     }
 
     // Leaving empty for now
-    uint256 constant INITCODE_LOAD_OFFSET = 59;
+    uint256 constant INITCODE_LOAD_OFFSET = 61;
 
     function _resolveInitcode() internal pure returns (bytes memory initcode, uint256 callDataStartOffset) {
         return (hex"", INITCODE_LOAD_OFFSET);
     }
+
+    // The variable length byte arrays (callData, paymasterAndData, signature) are encoded as:
+    // <2 bytes - resolverId><2 bytes - length><length bytes - compressed data>
+    // concatenated, each for the respective variable length byte array.
+    uint256 constant CALLDATA_SIZE_REPRESENTATION_PRECISION_BYTES = 2;
+    uint256 constant DAPP_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES = 2;
 
     function _resolveCalldata(uint256 _callDataStartOffset)
         internal
         view
         returns (bytes memory callData, uint256 paymasterAndDataStartOffset)
     {
-        return (hex"", 0);
+        bytes32 resolverId;
+        bytes calldata compressedCalldata;
+        assembly ("memory-safe") {
+            let offset := _callDataStartOffset
+
+            // The first 2 bytes of the calldata represent the resolverId
+            let bitsToDiscard := sub(256, mul(DAPP_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES, 8))
+            resolverId := shr(bitsToDiscard, calldataload(offset))
+
+            // The next 2 bytes represent the length of the compressed calldata
+            offset := add(offset, DAPP_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES)
+            bitsToDiscard := sub(256, mul(CALLDATA_SIZE_REPRESENTATION_PRECISION_BYTES, 8))
+            let callDataLength := shr(bitsToDiscard, calldataload(offset))
+
+            // The next `callDataLength` bytes represent the compressed calldata
+            offset := add(offset, CALLDATA_SIZE_REPRESENTATION_PRECISION_BYTES)
+            compressedCalldata.offset := offset
+            compressedCalldata.length := callDataLength
+
+            // The next bytes represent the paymasterAndData
+            paymasterAndDataStartOffset := add(offset, callDataLength)
+        }
+
+        callData = IResolver(dappSmartContractRegistry.registry(resolverId)).resolve(compressedCalldata);
     }
+
+    uint256 constant PND_SIZE_REPRESENTATION_PRECISION_BYTES = 2;
+    uint256 constant PND_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES = 2;
 
     function _resolvePaymasterAndData(uint256 _paymasterAndDataStartOffset)
         internal
         view
         returns (bytes memory paymasterAndData, uint256 signatureStartOffset)
     {
-        return (hex"", 0);
+        bytes32 resolverId;
+        bytes calldata compressedPaymasterAndData;
+        assembly ("memory-safe") {
+            let offset := _paymasterAndDataStartOffset
+
+            // The first 2 bytes of the calldata represent the resolverId
+            let bitsToDiscard := sub(256, mul(PND_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES, 8))
+            resolverId := shr(bitsToDiscard, calldataload(offset))
+
+            // The next 2 bytes represent the length of the compressed paymasterAndData
+            offset := add(offset, PND_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES)
+            bitsToDiscard := sub(256, mul(PND_SIZE_REPRESENTATION_PRECISION_BYTES, 8))
+            let pndLength := shr(bitsToDiscard, calldataload(offset))
+
+            // The next `pndLength` bytes represent the compressed calldata
+            offset := add(offset, PND_SIZE_REPRESENTATION_PRECISION_BYTES)
+            compressedPaymasterAndData.offset := offset
+            compressedPaymasterAndData.length := pndLength
+
+            // The next bytes represent the signature
+            signatureStartOffset := add(offset, pndLength)
+        }
+
+        paymasterAndData = IResolver(paymasterRegistry.registry(resolverId)).resolve(compressedPaymasterAndData);
     }
 
-    function _resolveSignature(uint256 _signatureStartOffset) internal view returns (bytes memory) {
-        return hex"";
+    uint256 constant SIG_SIZE_REPRESENTATION_PRECISION_BYTES = 2;
+    uint256 constant SIG_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES = 2;
+
+    function _resolveSignature(uint256 _signatureStartOffset) internal view returns (bytes memory signature) {
+        bytes32 resolverId;
+        bytes calldata compressedSignature;
+        assembly ("memory-safe") {
+            let offset := _signatureStartOffset
+
+            // The first 2 bytes of the calldata represent the resolverId
+            let bitsToDiscard := sub(256, mul(SIG_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES, 8))
+            resolverId := shr(bitsToDiscard, calldataload(offset))
+
+            // The next 2 bytes represent the length of the compressed paymasterAndData
+            offset := add(offset, SIG_RESOLVER_ID_REPRESENTATION_PRECISION_BYTES)
+            bitsToDiscard := sub(256, mul(SIG_SIZE_REPRESENTATION_PRECISION_BYTES, 8))
+            let pndLength := shr(bitsToDiscard, calldataload(offset))
+
+            // The next `pndLength` bytes represent the compressed calldata
+            offset := add(offset, SIG_SIZE_REPRESENTATION_PRECISION_BYTES)
+            compressedSignature.offset := offset
+            compressedSignature.length := pndLength
+        }
+
+        signature = IResolver(signatureRegistry.registry(resolverId)).resolve(compressedSignature);
     }
 
+    // Use fallback so that selector is not used
     fallback() external {
         // Rebuild the UserOperation struct from the calldata
         UserOperation[] memory operations = new UserOperation[](1);
