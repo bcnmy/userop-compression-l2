@@ -1,6 +1,5 @@
 # PoC for Calldata Compression on Layer 2 - Using Rage Trade's Transactions
-![image](https://github.com/bcnmy/l2-calldata-compression-poc/assets/16562513/dbfbd138-61a9-46d6-b967-227e63df94cb)
-
+![image](https://github.com/bcnmy/l2-calldata-compression-poc/assets/16562513/a886af25-effd-4a1f-a26f-c0932b8ca02e)
 
 
 In Layer 2 (L2) blockchain ecosystems, optimizing calldata is more than just compression—it's about smart data reduction. Here's how we do it:
