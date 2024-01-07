@@ -77,6 +77,10 @@ In the provided Solidity code:
 	
 These strategies collectively reduce the calldata size, leading to cost-efficient transactions on L2 blockchains.
 
+# Setup
+1. Git Clone
+2. `forge test`
+
 # Results
 The UserOperation from the following transaction was chosen: https://optimistic.etherscan.io/tx/0x38a6f56d0a1190fc94b7d6a5e501873427b5dd4b4806e2718b7fa69b0bde5ccf.
 
