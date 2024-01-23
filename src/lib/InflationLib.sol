@@ -3,9 +3,11 @@ pragma solidity ^0.8.23;
 
 import {RegistryLib} from "./RegistryLib.sol";
 import {IInflator} from "../interfaces/IInflator.sol";
+import {CastLib} from "./CastLib.sol";
 
 library InflationLib {
     using RegistryLib for RegistryLib.RegistryStore;
+    using CastLib for uint256;
 
     // Reserved IDs (upto 0x0000FF)
     enum RESERVED_IDS {
@@ -182,6 +184,44 @@ library InflationLib {
             revert(string.concat("DeflationLib: inflator failed to inflate: ", reason));
         } catch {
             revert("DeflationLib: inflator failed to inflate");
+        }
+    }
+
+    function deflate(
+        bytes calldata _data,
+        RegistryLib.RegistryStore storage _registry,
+        IInflator _inflator,
+        uint256 _inflatorIdSizeBytes,
+        uint256 _lengthSizeBytes
+    ) internal view returns (bytes memory) {
+        // Do not inflate
+        if (address(_inflator) == address(0)) {
+            return abi.encodePacked(
+                uint256(RESERVED_IDS.DO_NOT_INFLATE).toBytesNPacked(_inflatorIdSizeBytes),
+                _data.length.toBytesNPacked(_lengthSizeBytes),
+                _data
+            );
+        }
+
+        bytes memory deflatedData = _inflator.deflate(_data);
+
+        uint256 inflatorId = _registry.addrToId[address(_inflator)];
+        // Register and inflate
+        if (inflatorId == 0) {
+            return abi.encodePacked(
+                uint256(RESERVED_IDS.REGISTER_INFLATOR_AND_INFLATE).toBytesNPacked(_inflatorIdSizeBytes),
+                address(_inflator),
+                deflatedData.length.toBytesNPacked(_lengthSizeBytes),
+                deflatedData
+            );
+        }
+        // Normal Inflate Case
+        else {
+            return abi.encodePacked(
+                inflatorId.toBytesNPacked(_inflatorIdSizeBytes),
+                deflatedData.length.toBytesNPacked(_lengthSizeBytes),
+                deflatedData
+            );
         }
     }
 }

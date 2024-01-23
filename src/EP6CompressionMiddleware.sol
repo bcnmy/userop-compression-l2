@@ -7,9 +7,11 @@ import {IEP6CompressionMiddleware} from "./interfaces/IEP6CompressionMiddleware.
 import {RegistryLib} from "./lib/RegistryLib.sol";
 import {InflationLib} from "./lib/InflationLib.sol";
 import {SenderLib} from "./lib/SenderLib.sol";
+import {CastLib} from "./lib/CastLib.sol";
 
 contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     using RegistryLib for RegistryLib.RegistryStore;
+    using CastLib for uint256;
 
     // userOp.sender
     // Based on the fact the max no. of active addresses on Ethereum Mainnet = 1.5M
@@ -90,11 +92,16 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
      * Inflation and Defalation
      */
 
-    // TODO: dynamic
-    function _inflateSender(bytes calldata _slice) internal view returns (address sender, bytes calldata nextSlice) {
+    // sender
+    function _inflateSender(bytes calldata _slice) internal returns (address sender, bytes calldata nextSlice) {
         (sender, nextSlice) = SenderLib.inflate(_slice, senderRegistry, SENDER_REPRESENTATION_SIZE_BYTES);
     }
 
+    function _deflateSender(address _sender) internal view returns (bytes memory deflatedSender) {
+        deflatedSender = SenderLib.deflate(senderRegistry, _sender, SENDER_REPRESENTATION_SIZE_BYTES);
+    }
+
+    // nonce
     function _inflateNonce(bytes calldata _slice, address _sender)
         internal
         view
@@ -109,6 +116,11 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         nonce = entryPointV6.getNonce(_sender, key) | (key << 64);
     }
 
+    function _deflateNonce(uint256 _nonce) internal pure returns (bytes memory deflatedNonce) {
+        deflatedNonce = abi.encodePacked(uint192(_nonce >> 64));
+    }
+
+    // preVerificationGas
     function _inflatePreVerificationGas(bytes calldata _slice)
         internal
         pure
@@ -121,6 +133,15 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
+    function _deflatePreVerificationGas(uint256 _preVerificationGas)
+        internal
+        pure
+        returns (bytes memory deflatedPreVerificationGas)
+    {
+        deflatedPreVerificationGas = _preVerificationGas.toBytesNPacked(PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES);
+    }
+
+    // verificationGasLimit
     function _inflateVerificationGasLimit(bytes calldata _slice)
         internal
         pure
@@ -134,6 +155,21 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
+    function _deflateVerificationGasLimit(uint256 _verificationGasLimit)
+        internal
+        pure
+        returns (bytes memory deflatedVerificationGasLimit)
+    {
+        uint256 multiplier;
+        if (_verificationGasLimit % VERIFICATION_GAS_LIMIT_MULTIPLIER == 0) {
+            multiplier = _verificationGasLimit / VERIFICATION_GAS_LIMIT_MULTIPLIER;
+        } else {
+            multiplier = (_verificationGasLimit / VERIFICATION_GAS_LIMIT_MULTIPLIER) + 1;
+        }
+        return multiplier.toBytesNPacked(VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES);
+    }
+
+    // callGasLimit
     function _inflateCallGasLimit(bytes calldata _slice)
         internal
         pure
@@ -147,6 +183,17 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
+    function _deflateCallGasLimit(uint256 _callGasLimit) internal pure returns (bytes memory deflatedCallGasLimit) {
+        uint256 multiplier;
+        if (_callGasLimit % CALL_GAS_LIMIT_MULTIPLIER == 0) {
+            multiplier = _callGasLimit / CALL_GAS_LIMIT_MULTIPLIER;
+        } else {
+            multiplier = (_callGasLimit / CALL_GAS_LIMIT_MULTIPLIER) + 1;
+        }
+        return multiplier.toBytesNPacked(CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES);
+    }
+
+    // maxPriorityFeePerGas
     function _inflateMaxPriorityFeePerGas(bytes calldata _slice)
         internal
         pure
@@ -160,6 +207,21 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
+    function _deflateMaxPriorityFeePerGas(uint256 _maxPriorityFeePerGas)
+        internal
+        pure
+        returns (bytes memory deflatedMaxPriorityFeePerGas)
+    {
+        uint256 multiplier;
+        if (_maxPriorityFeePerGas % MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER == 0) {
+            multiplier = _maxPriorityFeePerGas / MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER;
+        } else {
+            multiplier = (_maxPriorityFeePerGas / MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER) + 1;
+        }
+        return multiplier.toBytesNPacked(MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES);
+    }
+
+    // maxFeePerGas
     function _inflateMaxFeePerGas(bytes calldata _slice)
         internal
         pure
@@ -173,9 +235,19 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
+    function _deflateMaxFeePerGas(uint256 _maxFeePerGas) internal pure returns (bytes memory deflatedMaxFeePerGas) {
+        uint256 multiplier;
+        if (_maxFeePerGas % MAX_FEE_PER_GAS_MULTIPLIER == 0) {
+            multiplier = _maxFeePerGas / MAX_FEE_PER_GAS_MULTIPLIER;
+        } else {
+            multiplier = (_maxFeePerGas / MAX_FEE_PER_GAS_MULTIPLIER) + 1;
+        }
+        return multiplier.toBytesNPacked(MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES);
+    }
+
+    // initCode
     function _inflateInitcode(bytes calldata _slice)
         internal
-        pure
         returns (bytes memory initCode, bytes calldata nextSlice)
     {
         (initCode, nextSlice) = InflationLib.inflate(
@@ -186,9 +258,23 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         );
     }
 
-    function _inflateCalldata(bytes calldata _slice)
+    function _deflateInitcode(bytes calldata _initCode, IInflator _initCodeInflator)
         internal
         view
+        returns (bytes memory deflatedInitcode)
+    {
+        deflatedInitcode = InflationLib.deflate(
+            _initCode,
+            initCodeInflatorRegistry,
+            _initCodeInflator,
+            INITCODE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES
+        );
+    }
+
+    // Calldata
+    function _inflateCalldata(bytes calldata _slice)
+        internal
         returns (bytes memory callData, bytes calldata nextSlice)
     {
         (callData, nextSlice) = InflationLib.inflate(
@@ -199,9 +285,23 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         );
     }
 
-    function _inflatePaymasterAndData(bytes calldata _slice)
+    function _deflateCalldata(bytes calldata _calldata, IInflator _calldataInflator)
         internal
         view
+        returns (bytes memory deflatedCalldata)
+    {
+        deflatedCalldata = InflationLib.deflate(
+            _calldata,
+            calldataInflatorRegistry,
+            _calldataInflator,
+            CALLDATA_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES
+        );
+    }
+
+    // PaymasterAndData
+    function _inflatePaymasterAndData(bytes calldata _slice)
+        internal
         returns (bytes memory paymasterAndData, bytes calldata nextSlice)
     {
         (paymasterAndData, nextSlice) = InflationLib.inflate(
@@ -212,14 +312,42 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         );
     }
 
-    function _inflateSignature(bytes calldata _slice)
+    function _deflatePaymasterAndData(bytes calldata _paymasterAndData, IInflator _paymasterAndDataInflator)
         internal
         view
+        returns (bytes memory deflatedPaymasterAndData)
+    {
+        deflatedPaymasterAndData = InflationLib.deflate(
+            _paymasterAndData,
+            paymasterInflatorRegistry,
+            _paymasterAndDataInflator,
+            PMD_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            PMD_LENGTH_REPRESENTATION_SIZE_BYTES
+        );
+    }
+
+    // Signature
+    function _inflateSignature(bytes calldata _slice)
+        internal
         returns (bytes memory signature, bytes calldata nextSlice)
     {
         (signature, nextSlice) = InflationLib.inflate(
             _slice,
             signatureInflatorRegistry,
+            SIGNATURE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES
+        );
+    }
+
+    function _deflateSignature(bytes calldata _signature, IInflator _signatureInflator)
+        internal
+        view
+        returns (bytes memory deflatedSignature)
+    {
+        deflatedSignature = InflationLib.deflate(
+            _signature,
+            signatureInflatorRegistry,
+            _signatureInflator,
             SIGNATURE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
             SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES
         );
@@ -257,6 +385,22 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
      * EntryPoint wrappers
      */
 
+    function simulateHandleDeflatedOp(bytes calldata _deflatedOp, address _target, bytes calldata _targetCallData)
+        external
+        returns (UserOperation memory inflatedOp)
+    {
+        (inflatedOp,) = _inflateOp(_deflatedOp);
+        entryPointV6.simulateHandleOp(inflatedOp, _target, _targetCallData);
+    }
+
+    function simulateValidationDeflatedOp(bytes calldata _deflatedOp)
+        external
+        returns (UserOperation memory inflatedOp)
+    {
+        (inflatedOp,) = _inflateOp(_deflatedOp);
+        entryPointV6.simulateValidation(inflatedOp);
+    }
+
     /**
      * Bundler Utilities
      */
@@ -291,6 +435,38 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
 
         for (uint256 i = 0; i < bundleLength; ++i) {
             (ops[i], next) = _inflateOp(next);
+        }
+    }
+
+    function _deflateOp(UserOperation calldata _op, InflationOptions calldata _option)
+        internal
+        view
+        returns (bytes memory deflatedOp)
+    {
+        deflatedOp = abi.encodePacked(
+            _deflateSender(_op.sender),
+            _deflateNonce(_op.nonce),
+            _deflateCallGasLimit(_op.callGasLimit),
+            _deflateVerificationGasLimit(_op.verificationGasLimit),
+            _deflatePreVerificationGas(_op.preVerificationGas),
+            _deflateMaxFeePerGas(_op.maxFeePerGas),
+            _deflateMaxPriorityFeePerGas(_op.maxPriorityFeePerGas),
+            _deflateInitcode(_op.initCode, _option.initCodeInflator),
+            _deflateCalldata(_op.callData, _option.callDataInflator),
+            _deflatePaymasterAndData(_op.paymasterAndData, _option.paymasterAndDataInflator),
+            _deflateSignature(_op.signature, _option.signatureInflator)
+        );
+    }
+
+    function deflateOps(UserOperation[] calldata _ops, InflationOptions[] calldata _options)
+        external
+        view
+        override
+        returns (bytes memory deflatedOps)
+    {
+        deflatedOps = abi.encodePacked(uint256(_ops.length).toBytesNPacked(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES));
+        for (uint256 i = 0; i < _ops.length; ++i) {
+            deflatedOps = abi.encode(deflatedOps, _deflateOp(_ops[i], _options[i]));
         }
     }
 }

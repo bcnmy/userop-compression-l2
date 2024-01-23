@@ -2,9 +2,11 @@
 pragma solidity ^0.8.23;
 
 import {RegistryLib} from "./RegistryLib.sol";
+import {CastLib} from "./CastLib.sol";
 
 library SenderLib {
     using RegistryLib for RegistryLib.RegistryStore;
+    using CastLib for uint256;
 
     // Reserved IDs (upto 0x0000FF)
     enum RESERVED_IDS {
@@ -71,5 +73,18 @@ library SenderLib {
         returns (address sender)
     {
         sender = _registry.checkAndGet(_senderId);
+    }
+
+    function deflate(RegistryLib.RegistryStore storage _registry, address _sender, uint256 _senderIdSizeBytes)
+        internal
+        view
+        returns (bytes memory deflatedSender)
+    {
+        uint256 senderId = _registry.addrToId[_sender];
+        if (senderId == 0) {
+            return abi.encodePacked(uint256(RESERVED_IDS.REGISTER_SENDER).toBytesNPacked(_senderIdSizeBytes), _sender);
+        } else {
+            return abi.encodePacked(senderId.toBytesNPacked(_senderIdSizeBytes));
+        }
     }
 }

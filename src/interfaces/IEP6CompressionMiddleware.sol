@@ -7,7 +7,7 @@ import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntryp
 interface IEP6CompressionMiddleware {
     /* Inflation Utilities */
     struct InflationOptions {
-        IInflator paymasterAndDataInflatorj;
+        IInflator paymasterAndDataInflator;
         IInflator signatureInflator;
         IInflator initCodeInflator;
         IInflator callDataInflator;
@@ -21,7 +21,7 @@ interface IEP6CompressionMiddleware {
     function callDataInflatorId(IInflator _inflator) external view returns (uint256);
 
     /* Bundler Utilities */
-    function simulateHandleDeflatedOp(bytes calldata _deflatedOp, address _target, bytes calldata _targetCalldata)
+    function simulateHandleDeflatedOp(bytes calldata _deflatedOp, address _target, bytes calldata _targetCallData)
         external
         returns (UserOperation memory inflatedOp);
 
@@ -31,9 +31,10 @@ interface IEP6CompressionMiddleware {
 
     function inflateOps(bytes calldata _deflatedOps) external returns (UserOperation[] memory op);
 
-    function deflateOps(UserOperation[] calldata ops, InflationOptions[] calldata _options)
+    function deflateOps(UserOperation[] calldata _ops, InflationOptions[] calldata _options)
         external
-        returns (bytes calldata _deflatedOp);
+        view
+        returns (bytes memory _deflatedOp);
 
     /* Deflated Op Execution - handleDeflatedOps */
     fallback(bytes calldata _deflatedOps) external returns (bytes memory);

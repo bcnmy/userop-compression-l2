@@ -12,7 +12,7 @@ contract RageTradeSubmitDelayedOrderCalldataResolver is IResolver {
         IPerpsV2MarketDelayedIntent(0x0EA09D97b4084d859328ec4bF8eBCF9ecCA26F1D);
 
     constructor(AddressRegistry _dappSmartContractRegistry) {
-        registeredId = _dappSmartContractRegistry.register(address(this));
+        // registeredId = _dappSmartContractRegistry.register(address(this));
     }
 
     function resolve(bytes calldata _data) external view override returns (bytes memory userOpCalldata) {
