@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {AddressRegistry} from "../AddressRegistry.sol";
-import {IPerpsV2MarketDelayedIntent} from "../rage-trade/IPerpsV2MarkedDelayerIntent.sol";
+import {IPerpsV2MarketDelayedIntent} from "./rage-trade/IPerpsV2MarkedDelayerIntent.sol";
 import {ISmartAccount} from "../smart-account/ISmartAccount.sol";
 import {IResolver} from "./IResolver.sol";
 

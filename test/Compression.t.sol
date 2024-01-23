@@ -2,16 +2,16 @@
 pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {EPMiddleware} from "src/EPMiddleware.sol";
+import {EP6CompressionMiddleware} from "src/EP6CompressionMiddleware.sol";
 import {AddressRegistry} from "src/AddressRegistry.sol";
-import {RageTradeSubmitDelayedOrderCalldataResolver} from "src/resolver/RageTradeSubmitDelayedOrderCalldataResolver.sol";
-import {BatchedSessionRouterResolver} from "src/resolver/BatchedSessionRouterResolver.sol";
-import {BiconomyVerifyingPaymasterResolver} from "src/resolver/BiconomyVerifyingPaymasterResolver.sol";
+import {RageTradeSubmitDelayedOrderCalldataResolver} from "src/inflator/RageTradeSubmitDelayedOrderCalldataResolver.sol";
+import {BatchedSessionRouterResolver} from "src/inflator/BatchedSessionRouterResolver.sol";
+import {BiconomyVerifyingPaymasterResolver} from "src/inflator/BiconomyVerifyingPaymasterResolver.sol";
 import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
 
 contract CompresssionTest is Test {
     EntryPointStub entryPointStub;
-    EPMiddleware epMiddleware;
+    EP6CompressionMiddleware epCompressionMiddleware;
     RageTradeSubmitDelayedOrderCalldataResolver rageTradeSubmitDelayedOrderCalldataResolver;
     BatchedSessionRouterResolver batchedSessionRouterResolver;
     BiconomyVerifyingPaymasterResolver biconomyVerifyingPaymasterResolver;
@@ -31,11 +31,12 @@ contract CompresssionTest is Test {
 
     function setUp() public {
         entryPointStub = new EntryPointStub();
-        epMiddleware = new EPMiddleware(IEntryPoint(address(entryPointStub)));
+        epCompressionMiddleware = new EP6CompressionMiddleware(IEntryPoint(address(entryPointStub)));
         rageTradeSubmitDelayedOrderCalldataResolver =
-            new RageTradeSubmitDelayedOrderCalldataResolver(epMiddleware.dappSmartContractRegistry());
-        batchedSessionRouterResolver = new BatchedSessionRouterResolver(epMiddleware.signatureRegistry());
-        biconomyVerifyingPaymasterResolver = new BiconomyVerifyingPaymasterResolver(epMiddleware.paymasterRegistry());
+            new RageTradeSubmitDelayedOrderCalldataResolver(epCompressionMiddleware.dappSmartContractRegistry());
+        batchedSessionRouterResolver = new BatchedSessionRouterResolver(epCompressionMiddleware.signatureRegistry());
+        biconomyVerifyingPaymasterResolver =
+            new BiconomyVerifyingPaymasterResolver(epCompressionMiddleware.paymasterRegistry());
     }
 
     function decodeHandleOpsData(bytes calldata data) public pure returns (UserOperation[] memory, address) {
@@ -117,7 +118,7 @@ contract CompresssionTest is Test {
 
     function _compressOp(UserOperation memory op) internal returns (bytes memory) {
         // Register sender
-        uint24 senderId = uint24(uint256(epMiddleware.smartAccountRegistry().register(op.sender)));
+        uint24 senderId = uint24(uint256(epCompressionMiddleware.smartAccountRegistry().register(op.sender)));
         // Nonce
         uint192 nonce = uint192(op.nonce >> 64);
         // pvg
@@ -177,8 +178,8 @@ contract CompresssionTest is Test {
         console2.logBytes(compressedOp);
 
         vm.prank(originalBeneficiary);
-        (bool success,) = address(epMiddleware).call(compressedOp);
-        assertTrue(success, "Call to epMiddleware failed");
+        (bool success,) = address(epCompressionMiddleware).call(compressedOp);
+        assertTrue(success, "Call to epCompressionMiddleware failed");
 
         assertEq(entryPointStub.beneficiary(), originalBeneficiary, "Beneficiary mismatch");
         assertEq(entryPointStub.userOp().sender, originalOp.sender, "Sender mismatch");

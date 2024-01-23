@@ -12,13 +12,13 @@ In Layer 2 (L2) blockchain ecosystems, optimizing calldata is more than just com
     
 4. **Precision Reduction in Gas Limits**: Fields like gas limits, which can tolerate slight imprecision, are compressed by reducing their precision. Note this this is lossy compression, but this fine (with a certain range) for fields like callGasLimit and verificationGasLimit since unused gas is returned to the payer (atleast as of EPv0.6)
 
-5. **Remove redundant information such as handleOps selector from calldata**: We simply send the calldata to the Middleware's fallback function, which saves us 4 bytes of calldata per transaction.
+5. **Remove redundant information such as handleOps selector from calldata**: We simply send the calldata to the CompressionMiddleware's fallback function, which saves us 4 bytes of calldata per transaction.
 
 ### Application in the Provided Code
 
 In the provided Solidity code:
 
-### Middleware Contract Compression Techniques
+### CompressionMiddleware Contract Compression Techniques
 
 1. **Sender Address Compression**: 
     - Technique: Reduced Precision Representation.
