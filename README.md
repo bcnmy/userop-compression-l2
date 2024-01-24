@@ -8,7 +8,7 @@ In Layer 2 (L2) blockchain ecosystems, optimizing calldata is more than just com
     
 2. **Compaction Over Standard ABI Encoding**: Standard ABI encoding is inefficient, padding data to 32 bytes. We tackle this by packing data more densely and using a custom parser.
     
-3. **Pattern Recognition with Custom Resolvers**: We analyze common data patterns and use custom resolvers to compress and decompress this data efficiently. This method also offloads repetitive data to on-chain storage. This effectively moves information about repetitive data and the "structure" away from the calldata into the resolver contract.
+3. **Pattern Recognition with Custom Decompressors**: We analyze common data patterns and use custom Decompressors to compress and decompress this data efficiently. This method also offloads repetitive data to on-chain storage. This effectively moves information about repetitive data and the "structure" away from the calldata into the Decompressor contract.
     
 4. **Precision Reduction in Gas Limits**: Fields like gas limits, which can tolerate slight imprecision, are compressed by reducing their precision. Note this this is lossy compression, but this fine (with a certain range) for fields like callGasLimit and verificationGasLimit since unused gas is returned to the payer (atleast as of EPv0.6)
 
@@ -50,7 +50,7 @@ In the provided Solidity code:
 	
 8. **Calldata Compression**:    
     - Technique: Custom Encoding Format.
-    - Implementation: Encodes with a resolver ID, length, and compressed data.
+    - Implementation: Encodes with a Decompressor ID, length, and compressed data.
 
 9. **PaymasterAndData Compression**:    
     - Technique: Custom Encoding Format.
@@ -58,22 +58,22 @@ In the provided Solidity code:
 	
 10. **Signature Compression**: 
     - Technique: Custom Encoding Format.
-    - Implementation: Compresses using a format that includes a resolver ID and length.
+    - Implementation: Compresses using a format that includes a Decompressor ID and length.
 
-### Resolver-Specific Compression Techniques
+### Decompressor-Specific Compression Techniques
 
-1. **BatchedSessionRouterResolver (op.signature)**:    
+1. **BatchedSessionRouterDecompressor (op.signature)**:    
     - Hardcoded Addresses: `batchedSessionRouter` and `sessionKeyManager`.
     - ID Replacement: 2-byte ID for `sessionValidationModule` using an on-chain dictionary.
     - Dynamic Data Compression: Compresses `SessionData` structure.
     - Assembly for Data Handling: Uses assembly for efficient data extraction.
 	
-2. **BiconomyVerifyingPaymasterResolver (op.paymasterAndData)**:    
+2. **BiconomyVerifyingPaymasterDecompressor (op.paymasterAndData)**:    
     - Hardcoded Paymaster Address.
     - ID Replacement: 2-byte ID for `paymasterId` using an on-chain dictionary.
     - Efficient Signature Encoding: `<2 bytes - length><signature>` format.
 	
-3. **RageTradeSubmitDelayedOrderCalldataResolver (op.callData)** :    
+3. **RageTradeSubmitDelayedOrderCalldataDecompressor (op.callData)** :    
     - Direct Encoding: Prepares calldata for delayed orders using `abi.encodeCall`.
 	
 These strategies collectively reduce the calldata size, leading to cost-efficient transactions on L2 blockchains.
@@ -132,4 +132,4 @@ The results indicate that the reduction in calldata with this algorithm translat
 
 ### Notes
 1. I can do a much better job of compressing the signature, however for the PoC purposes I've chosen to not complicate it too much. Notice that op.signature is quite large, and this is due to the fact that SessionKeys + BatchedSessionRouter is being used. Once SessionKeysV2 goes live, this cost will go down significantly since much of these techniques are natively incorporated into it's design given the heavy focus on callData reduction.
-2. The solution is feasible if we encourage developers to identify patterns in their calldata structures and write appropriate resolvers to handle it. This opens us a new paradigm when it comes to Gas Optimisation and opens a path forward to another ERC for standardising Resolvers, Resolver Registries and Onchain Address Dictionaries.
+2. The solution is feasible if we encourage developers to identify patterns in their calldata structures and write appropriate Decompressors to handle it. This opens us a new paradigm when it comes to Gas Optimisation and opens a path forward to another ERC for standardising Decompressors, Decompressor Registries and Onchain Address Dictionaries.

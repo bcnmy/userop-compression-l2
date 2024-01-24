@@ -2,10 +2,10 @@
 pragma solidity ^0.8.23;
 
 import {RegistryLib} from "./RegistryLib.sol";
-import {IInflator} from "../interfaces/IInflator.sol";
+import {IDecompressor} from "../interfaces/IDecompressor.sol";
 import {CastLib} from "./CastLib.sol";
 
-library InflationLib {
+library DecompressionLib {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
 
@@ -15,7 +15,7 @@ library InflationLib {
         REGISTER_INFLATOR_AND_INFLATE // 0x000001
     }
 
-    function inflate(
+    function decompress(
         bytes calldata _slice,
         RegistryLib.RegistryStore storage _registry,
         uint256 _inflatorIdSizeBytes,
@@ -123,8 +123,8 @@ library InflationLib {
         }
 
         // Decompress the data
-        try IInflator(inflatorAddr).inflate(compressedData) returns (bytes memory _inflatedData) {
-            inflatedData = _inflatedData;
+        try IDecompressor(inflatorAddr).decompress(compressedData) returns (bytes memory _decompressdData) {
+            inflatedData = _decompressdData;
         } catch Error(string memory reason) {
             revert(string.concat("DeflationLib: inflator failed to inflate: ", reason));
         } catch {
@@ -157,7 +157,7 @@ library InflationLib {
         }
 
         // Get the inflator
-        IInflator inflator = IInflator(_registry.checkAndGet(inflatorId));
+        IDecompressor inflator = IDecompressor(_registry.checkAndGet(inflatorId));
         if (address(inflator) == address(0)) {
             revert("DeflationLib: inflator not registered");
         }
@@ -178,8 +178,8 @@ library InflationLib {
         }
 
         // Decompress the data
-        try inflator.inflate(compressedData) returns (bytes memory _inflatedData) {
-            inflatedData = _inflatedData;
+        try inflator.decompress(compressedData) returns (bytes memory _decompressdData) {
+            inflatedData = _decompressdData;
         } catch Error(string memory reason) {
             revert(string.concat("DeflationLib: inflator failed to inflate: ", reason));
         } catch {
@@ -187,10 +187,10 @@ library InflationLib {
         }
     }
 
-    function deflate(
+    function compress(
         bytes calldata _data,
         RegistryLib.RegistryStore storage _registry,
-        IInflator _inflator,
+        IDecompressor _inflator,
         uint256 _inflatorIdSizeBytes,
         uint256 _lengthSizeBytes
     ) internal view returns (bytes memory) {
@@ -203,7 +203,7 @@ library InflationLib {
             );
         }
 
-        bytes memory deflatedData = _inflator.deflate(_data);
+        bytes memory compressedData = _inflator.compress(_data);
 
         uint256 inflatorId = _registry.addrToId[address(_inflator)];
         // Register and inflate
@@ -211,16 +211,16 @@ library InflationLib {
             return abi.encodePacked(
                 uint256(RESERVED_IDS.REGISTER_INFLATOR_AND_INFLATE).toBytesNPacked(_inflatorIdSizeBytes),
                 address(_inflator),
-                deflatedData.length.toBytesNPacked(_lengthSizeBytes),
-                deflatedData
+                compressedData.length.toBytesNPacked(_lengthSizeBytes),
+                compressedData
             );
         }
         // Normal Inflate Case
         else {
             return abi.encodePacked(
                 inflatorId.toBytesNPacked(_inflatorIdSizeBytes),
-                deflatedData.length.toBytesNPacked(_lengthSizeBytes),
-                deflatedData
+                compressedData.length.toBytesNPacked(_lengthSizeBytes),
+                compressedData
             );
         }
     }

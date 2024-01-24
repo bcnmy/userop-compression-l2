@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {IInflator} from "./interfaces/IInflator.sol";
+import {IDecompressor} from "./interfaces/IDecompressor.sol";
 import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
-import {IEP6CompressionMiddleware} from "./interfaces/IEP6CompressionMiddleware.sol";
+import {IEP6Decompressor} from "./interfaces/IEP6Decompressor.sol";
 import {RegistryLib} from "./lib/RegistryLib.sol";
-import {InflationLib} from "./lib/InflationLib.sol";
+import {DecompressionLib} from "./lib/DecompressionLib.sol";
 import {SenderLib} from "./lib/SenderLib.sol";
 import {CastLib} from "./lib/CastLib.sol";
 
 // TODO: move to compress/decompress terminology
 
-contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
+contract EP6Decompressor is IEP6Decompressor {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
 
@@ -32,6 +32,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     uint256 constant PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES = 5;
 
     // TODO: userOp.verificationGasLimit
+    // TODO: Multiplier from constructor
     // The verification gas limit can be approximated as the next greatest multiple of 5,000
     // Since SA/paymaster do not pay for unused gas (as of EPv0.6), this is a safe approximation.
     // Assuming a maximum of 1M gas, we can bound it to 1 byte instead of the usual 32.
@@ -39,34 +40,37 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     uint256 constant VERIFICATION_GAS_LIMIT_MULTIPLIER = 5000;
 
     // TODO: userOp.callGasLimit
+    // TODO: Multiplier from constructor
     // The call gas limit can be approximated as the next greatest multiple of 50,000
     uint256 constant CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES = 1;
     uint256 constant CALL_GAS_LIMIT_MULTIPLIER = 50000;
 
     // userOp.maxPriorityFeePerGas
     // The following guarantees a maximum of ~4300 gwei
+    // TODO: Multiplier from constructor
     uint256 constant MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES = 4;
     uint256 constant MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER = 0.000001 gwei;
 
     // userOp.maxFeePerGas
     // The following guarantees a maximum of ~43k gwei
+    // TODO: Multiplier from constructor
     uint256 constant MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES = 4;
     uint256 constant MAX_FEE_PER_GAS_MULTIPLIER = 0.00001 gwei;
 
     // userOp.initCode
-    uint256 constant INITCODE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 constant INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
     uint256 constant INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // userOp.paymasterAndData
-    uint256 constant PMD_INFLATOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 constant PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
     uint256 constant PMD_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // userOp.calldata
-    uint256 constant CALLDATA_INFLATOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 constant CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
     uint256 constant CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // userOp.signature
-    uint256 constant SIGNATURE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 constant SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
     uint256 constant SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // Bundling
@@ -75,18 +79,18 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
 
     IEntryPoint public immutable entryPointV6;
     RegistryLib.RegistryStore public senderRegistry;
-    RegistryLib.RegistryStore public paymasterInflatorRegistry;
-    RegistryLib.RegistryStore public signatureInflatorRegistry;
-    RegistryLib.RegistryStore public calldataInflatorRegistry;
-    RegistryLib.RegistryStore public initCodeInflatorRegistry;
+    RegistryLib.RegistryStore public paymasterDecompressorRegistry;
+    RegistryLib.RegistryStore public signatureDecompressorRegistry;
+    RegistryLib.RegistryStore public calldataDecompressorRegistry;
+    RegistryLib.RegistryStore public initCodeDecompressorRegistry;
 
     constructor(IEntryPoint _entryPointV6) {
         entryPointV6 = _entryPointV6;
         senderRegistry.initialize();
-        paymasterInflatorRegistry.initialize();
-        signatureInflatorRegistry.initialize();
-        calldataInflatorRegistry.initialize();
-        initCodeInflatorRegistry.initialize();
+        paymasterDecompressorRegistry.initialize();
+        signatureDecompressorRegistry.initialize();
+        calldataDecompressorRegistry.initialize();
+        initCodeDecompressorRegistry.initialize();
     }
 
     /**
@@ -94,16 +98,16 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
      */
 
     // sender
-    function _inflateSender(bytes calldata _slice) internal returns (address sender, bytes calldata nextSlice) {
-        (sender, nextSlice) = SenderLib.inflate(_slice, senderRegistry, SENDER_REPRESENTATION_SIZE_BYTES);
+    function _decompressSender(bytes calldata _slice) internal returns (address sender, bytes calldata nextSlice) {
+        (sender, nextSlice) = SenderLib.decompress(_slice, senderRegistry, SENDER_REPRESENTATION_SIZE_BYTES);
     }
 
-    function _deflateSender(address _sender) internal view returns (bytes memory deflatedSender) {
-        deflatedSender = SenderLib.deflate(senderRegistry, _sender, SENDER_REPRESENTATION_SIZE_BYTES);
+    function _compressSender(address _sender) internal view returns (bytes memory compressedSender) {
+        compressedSender = SenderLib.compress(senderRegistry, _sender, SENDER_REPRESENTATION_SIZE_BYTES);
     }
 
     // nonce
-    function _inflateNonce(bytes calldata _slice, address _sender)
+    function _decompressNonce(bytes calldata _slice, address _sender)
         internal
         view
         returns (uint256 nonce, bytes calldata nextSlice)
@@ -117,12 +121,12 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         nonce = entryPointV6.getNonce(_sender, key) | (key << 64);
     }
 
-    function _deflateNonce(uint256 _nonce) internal pure returns (bytes memory deflatedNonce) {
-        deflatedNonce = abi.encodePacked(uint192(_nonce >> 64));
+    function _compressNonce(uint256 _nonce) internal pure returns (bytes memory compressedNonce) {
+        compressedNonce = abi.encodePacked(uint192(_nonce >> 64));
     }
 
     // preVerificationGas
-    function _inflatePreVerificationGas(bytes calldata _slice)
+    function _decompressPreVerificationGas(bytes calldata _slice)
         internal
         pure
         returns (uint256 preVerificationGas, bytes calldata nextSlice)
@@ -134,16 +138,17 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
-    function _deflatePreVerificationGas(uint256 _preVerificationGas)
+    function _compressPreVerificationGas(uint256 _preVerificationGas)
         internal
         pure
-        returns (bytes memory deflatedPreVerificationGas)
+        returns (bytes memory compressedPreVerificationGas)
     {
-        deflatedPreVerificationGas = _preVerificationGas.toBytesNPacked(PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES);
+        compressedPreVerificationGas =
+            _preVerificationGas.toBytesNPacked(PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES);
     }
 
     // verificationGasLimit
-    function _inflateVerificationGasLimit(bytes calldata _slice)
+    function _decompressVerificationGasLimit(bytes calldata _slice)
         internal
         pure
         returns (uint256 verificationGasLimit, bytes calldata nextSlice)
@@ -156,10 +161,10 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
-    function _deflateVerificationGasLimit(uint256 _verificationGasLimit)
+    function _compressVerificationGasLimit(uint256 _verificationGasLimit)
         internal
         pure
-        returns (bytes memory deflatedVerificationGasLimit)
+        returns (bytes memory compressedVerificationGasLimit)
     {
         uint256 multiplier;
         if (_verificationGasLimit % VERIFICATION_GAS_LIMIT_MULTIPLIER == 0) {
@@ -171,7 +176,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     }
 
     // callGasLimit
-    function _inflateCallGasLimit(bytes calldata _slice)
+    function _decompressCallGasLimit(bytes calldata _slice)
         internal
         pure
         returns (uint256 callGasLimit, bytes calldata nextSlice)
@@ -184,7 +189,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
-    function _deflateCallGasLimit(uint256 _callGasLimit) internal pure returns (bytes memory deflatedCallGasLimit) {
+    function _compressCallGasLimit(uint256 _callGasLimit) internal pure returns (bytes memory compressedCallGasLimit) {
         uint256 multiplier;
         if (_callGasLimit % CALL_GAS_LIMIT_MULTIPLIER == 0) {
             multiplier = _callGasLimit / CALL_GAS_LIMIT_MULTIPLIER;
@@ -195,7 +200,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     }
 
     // maxPriorityFeePerGas
-    function _inflateMaxPriorityFeePerGas(bytes calldata _slice)
+    function _decompressMaxPriorityFeePerGas(bytes calldata _slice)
         internal
         pure
         returns (uint256 maxPriorityFeePerGas, bytes calldata nextSlice)
@@ -208,10 +213,10 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
-    function _deflateMaxPriorityFeePerGas(uint256 _maxPriorityFeePerGas)
+    function _compressMaxPriorityFeePerGas(uint256 _maxPriorityFeePerGas)
         internal
         pure
-        returns (bytes memory deflatedMaxPriorityFeePerGas)
+        returns (bytes memory compressedMaxPriorityFeePerGas)
     {
         uint256 multiplier;
         if (_maxPriorityFeePerGas % MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER == 0) {
@@ -223,7 +228,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     }
 
     // maxFeePerGas
-    function _inflateMaxFeePerGas(bytes calldata _slice)
+    function _decompressMaxFeePerGas(bytes calldata _slice)
         internal
         pure
         returns (uint256 maxFeePerGas, bytes calldata nextSlice)
@@ -236,7 +241,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         }
     }
 
-    function _deflateMaxFeePerGas(uint256 _maxFeePerGas) internal pure returns (bytes memory deflatedMaxFeePerGas) {
+    function _compressMaxFeePerGas(uint256 _maxFeePerGas) internal pure returns (bytes memory compressedMaxFeePerGas) {
         uint256 multiplier;
         if (_maxFeePerGas % MAX_FEE_PER_GAS_MULTIPLIER == 0) {
             multiplier = _maxFeePerGas / MAX_FEE_PER_GAS_MULTIPLIER;
@@ -247,183 +252,191 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     }
 
     // initCode
-    function _inflateInitcode(bytes calldata _slice)
+    function _decompressInitcode(bytes calldata _slice)
         internal
         returns (bytes memory initCode, bytes calldata nextSlice)
     {
-        (initCode, nextSlice) = InflationLib.inflate(
+        (initCode, nextSlice) = DecompressionLib.decompress(
             _slice,
-            initCodeInflatorRegistry,
-            INITCODE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            initCodeDecompressorRegistry,
+            INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
-    function _deflateInitcode(bytes calldata _initCode, IInflator _initCodeInflator)
+    function _compressInitcode(bytes calldata _initCode, IDecompressor _initCodeDecompressor)
         internal
         view
-        returns (bytes memory deflatedInitcode)
+        returns (bytes memory compressedInitcode)
     {
-        deflatedInitcode = InflationLib.deflate(
+        compressedInitcode = DecompressionLib.compress(
             _initCode,
-            initCodeInflatorRegistry,
-            _initCodeInflator,
-            INITCODE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            initCodeDecompressorRegistry,
+            _initCodeDecompressor,
+            INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
     // Calldata
-    function _inflateCalldata(bytes calldata _slice)
+    function _decompressCalldata(bytes calldata _slice)
         internal
         returns (bytes memory callData, bytes calldata nextSlice)
     {
-        (callData, nextSlice) = InflationLib.inflate(
+        (callData, nextSlice) = DecompressionLib.decompress(
             _slice,
-            calldataInflatorRegistry,
-            CALLDATA_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            calldataDecompressorRegistry,
+            CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
-    function _deflateCalldata(bytes calldata _calldata, IInflator _calldataInflator)
+    function _compressCalldata(bytes calldata _calldata, IDecompressor _calldataDecompressor)
         internal
         view
-        returns (bytes memory deflatedCalldata)
+        returns (bytes memory compressedCalldata)
     {
-        deflatedCalldata = InflationLib.deflate(
+        compressedCalldata = DecompressionLib.compress(
             _calldata,
-            calldataInflatorRegistry,
-            _calldataInflator,
-            CALLDATA_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            calldataDecompressorRegistry,
+            _calldataDecompressor,
+            CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
     // PaymasterAndData
-    function _inflatePaymasterAndData(bytes calldata _slice)
+    function _decompressPaymasterAndData(bytes calldata _slice)
         internal
         returns (bytes memory paymasterAndData, bytes calldata nextSlice)
     {
-        (paymasterAndData, nextSlice) = InflationLib.inflate(
+        (paymasterAndData, nextSlice) = DecompressionLib.decompress(
             _slice,
-            paymasterInflatorRegistry,
-            PMD_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            paymasterDecompressorRegistry,
+            PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             PMD_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
-    function _deflatePaymasterAndData(bytes calldata _paymasterAndData, IInflator _paymasterAndDataInflator)
+    function _compressPaymasterAndData(bytes calldata _paymasterAndData, IDecompressor _paymasterAndDataDecompressor)
         internal
         view
-        returns (bytes memory deflatedPaymasterAndData)
+        returns (bytes memory compressedPaymasterAndData)
     {
-        deflatedPaymasterAndData = InflationLib.deflate(
+        compressedPaymasterAndData = DecompressionLib.compress(
             _paymasterAndData,
-            paymasterInflatorRegistry,
-            _paymasterAndDataInflator,
-            PMD_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            paymasterDecompressorRegistry,
+            _paymasterAndDataDecompressor,
+            PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             PMD_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
     // Signature
-    function _inflateSignature(bytes calldata _slice)
+    function _decompressSignature(bytes calldata _slice)
         internal
         returns (bytes memory signature, bytes calldata nextSlice)
     {
-        (signature, nextSlice) = InflationLib.inflate(
+        (signature, nextSlice) = DecompressionLib.decompress(
             _slice,
-            signatureInflatorRegistry,
-            SIGNATURE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            signatureDecompressorRegistry,
+            SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
-    function _deflateSignature(bytes calldata _signature, IInflator _signatureInflator)
+    function _compressSignature(bytes calldata _signature, IDecompressor _signatureDecompressor)
         internal
         view
-        returns (bytes memory deflatedSignature)
+        returns (bytes memory compressedSignature)
     {
-        deflatedSignature = InflationLib.deflate(
+        compressedSignature = DecompressionLib.compress(
             _signature,
-            signatureInflatorRegistry,
-            _signatureInflator,
-            SIGNATURE_INFLATOR_ID_REPRESENTATION_SIZE_BYTES,
+            signatureDecompressorRegistry,
+            _signatureDecompressor,
+            SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES
         );
     }
 
     // Use fallback so that selector is not used
-    fallback(bytes calldata) external returns (bytes memory) {
-        entryPointV6.handleOps(inflateOps(msg.data), payable(msg.sender));
+    /// @inheritdoc IEP6Decompressor
+    fallback() external {
+        entryPointV6.handleOps(decompressOps(msg.data), payable(msg.sender));
     }
 
     /**
-     * Inflator Management
+     * Decompressor Management
      */
+    /// @inheritdoc IEP6Decompressor
     function senderId(address _sender) external view override returns (uint256) {
         return senderRegistry.addrToId[_sender];
     }
 
-    function paymasterInfaltorId(IInflator _inflator) external view override returns (uint256) {
-        return paymasterInflatorRegistry.addrToId[address(_inflator)];
+    /// @inheritdoc IEP6Decompressor
+    function paymasterInfaltorId(IDecompressor _inflator) external view override returns (uint256) {
+        return paymasterDecompressorRegistry.addrToId[address(_inflator)];
     }
 
-    function signatureInflatorId(IInflator _inflator) external view override returns (uint256) {
-        return signatureInflatorRegistry.addrToId[address(_inflator)];
+    /// @inheritdoc IEP6Decompressor
+    function signatureDecompressorId(IDecompressor _inflator) external view override returns (uint256) {
+        return signatureDecompressorRegistry.addrToId[address(_inflator)];
     }
 
-    function initCodeInflatorId(IInflator _inflator) external view override returns (uint256) {
-        return initCodeInflatorRegistry.addrToId[address(_inflator)];
+    /// @inheritdoc IEP6Decompressor
+    function initCodeDecompressorId(IDecompressor _inflator) external view override returns (uint256) {
+        return initCodeDecompressorRegistry.addrToId[address(_inflator)];
     }
 
-    function callDataInflatorId(IInflator _inflator) external view override returns (uint256) {
-        return calldataInflatorRegistry.addrToId[address(_inflator)];
+    /// @inheritdoc IEP6Decompressor
+    function callDataDecompressorId(IDecompressor _inflator) external view override returns (uint256) {
+        return calldataDecompressorRegistry.addrToId[address(_inflator)];
     }
 
     /**
      * EntryPoint wrappers
      */
 
-    // TODO: catch and throw custom error to include the inflated op
-    function simulateHandleDeflatedOp(bytes calldata _deflatedOp, address _target, bytes calldata _targetCallData)
+    // TODO: catch and throw custom error to include the decompressed op
+    /// @inheritdoc IEP6Decompressor
+    function simulateHandleCompressedOp(bytes calldata _compressdOp, address _target, bytes calldata _targetCallData)
         external
-        returns (UserOperation memory inflatedOp)
     {
-        (inflatedOp,) = _inflateOp(_deflatedOp);
-        entryPointV6.simulateHandleOp(inflatedOp, _target, _targetCallData);
+        (UserOperation memory decompressedOp,) = _decompressOp(_compressdOp);
+        entryPointV6.simulateHandleOp(decompressedOp, _target, _targetCallData);
     }
 
-    // TODO: catch and throw custom error to include the inflated op
-    function simulateValidationDeflatedOp(bytes calldata _deflatedOp)
-        external
-        returns (UserOperation memory inflatedOp)
-    {
-        (inflatedOp,) = _inflateOp(_deflatedOp);
-        entryPointV6.simulateValidation(inflatedOp);
+    // TODO: catch and throw custom error to include the decompressed op
+    /// @inheritdoc IEP6Decompressor
+    function simulateValidationCompressedOp(bytes calldata _compressdOp) external {
+        (UserOperation memory decompressedOp,) = _decompressOp(_compressdOp);
+        entryPointV6.simulateValidation(decompressedOp);
     }
 
     /**
      * Bundler Utilities
      */
-    function _inflateOp(bytes calldata _deflatedOp) internal returns (UserOperation memory op, bytes calldata next) {
-        next = _deflatedOp;
-        (op.sender, next) = _inflateSender(next);
-        (op.nonce, next) = _inflateNonce(next, op.sender);
-        (op.callGasLimit, next) = _inflateCallGasLimit(next);
-        (op.verificationGasLimit, next) = _inflateVerificationGasLimit(next);
-        (op.preVerificationGas, next) = _inflatePreVerificationGas(next);
-        (op.maxFeePerGas, next) = _inflateMaxFeePerGas(next);
-        (op.maxPriorityFeePerGas, next) = _inflateMaxPriorityFeePerGas(next);
-        (op.initCode, next) = _inflateInitcode(next);
-        (op.callData, next) = _inflateCalldata(next);
-        (op.paymasterAndData, next) = _inflatePaymasterAndData(next);
-        (op.signature, next) = _inflateSignature(next);
+    function _decompressOp(bytes calldata _compressdOp)
+        internal
+        returns (UserOperation memory op, bytes calldata next)
+    {
+        next = _compressdOp;
+        (op.sender, next) = _decompressSender(next);
+        (op.nonce, next) = _decompressNonce(next, op.sender);
+        (op.callGasLimit, next) = _decompressCallGasLimit(next);
+        (op.verificationGasLimit, next) = _decompressVerificationGasLimit(next);
+        (op.preVerificationGas, next) = _decompressPreVerificationGas(next);
+        (op.maxFeePerGas, next) = _decompressMaxFeePerGas(next);
+        (op.maxPriorityFeePerGas, next) = _decompressMaxPriorityFeePerGas(next);
+        (op.initCode, next) = _decompressInitcode(next);
+        (op.callData, next) = _decompressCalldata(next);
+        (op.paymasterAndData, next) = _decompressPaymasterAndData(next);
+        (op.signature, next) = _decompressSignature(next);
     }
 
-    function inflateOps(bytes calldata _deflatedOps) public returns (UserOperation[] memory ops) {
-        bytes calldata next = _deflatedOps;
+    /// @inheritdoc IEP6Decompressor
+    function decompressOps(bytes calldata _compressdOps) public returns (UserOperation[] memory ops) {
+        bytes calldata next = _compressdOps;
 
         // Extract the bundle length
         uint256 bundleLength;
@@ -437,40 +450,41 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         ops = new UserOperation[](bundleLength);
 
         for (uint256 i = 0; i < bundleLength; ++i) {
-            (ops[i], next) = _inflateOp(next);
+            (ops[i], next) = _decompressOp(next);
         }
     }
 
-    function _deflateOp(UserOperation calldata _op, InflationOptions calldata _option)
+    function _compressOp(UserOperation calldata _op, DecompressionOptions calldata _option)
         internal
         view
-        returns (bytes memory deflatedOp)
+        returns (bytes memory compressedOp)
     {
-        deflatedOp = abi.encodePacked(
-            _deflateSender(_op.sender),
-            _deflateNonce(_op.nonce),
-            _deflateCallGasLimit(_op.callGasLimit),
-            _deflateVerificationGasLimit(_op.verificationGasLimit),
-            _deflatePreVerificationGas(_op.preVerificationGas),
-            _deflateMaxFeePerGas(_op.maxFeePerGas),
-            _deflateMaxPriorityFeePerGas(_op.maxPriorityFeePerGas),
-            _deflateInitcode(_op.initCode, _option.initCodeInflator),
-            _deflateCalldata(_op.callData, _option.callDataInflator),
-            _deflatePaymasterAndData(_op.paymasterAndData, _option.paymasterAndDataInflator),
-            _deflateSignature(_op.signature, _option.signatureInflator)
+        compressedOp = abi.encodePacked(
+            _compressSender(_op.sender),
+            _compressNonce(_op.nonce),
+            _compressCallGasLimit(_op.callGasLimit),
+            _compressVerificationGasLimit(_op.verificationGasLimit),
+            _compressPreVerificationGas(_op.preVerificationGas),
+            _compressMaxFeePerGas(_op.maxFeePerGas),
+            _compressMaxPriorityFeePerGas(_op.maxPriorityFeePerGas),
+            _compressInitcode(_op.initCode, _option.initCodeDecompressor),
+            _compressCalldata(_op.callData, _option.callDataDecompressor),
+            _compressPaymasterAndData(_op.paymasterAndData, _option.paymasterAndDataDecompressor),
+            _compressSignature(_op.signature, _option.signatureDecompressor)
         );
     }
 
-    function deflateOps(UserOperation[] calldata _ops, InflationOptions[] calldata _options)
+    /// @inheritdoc IEP6Decompressor
+    function compressOps(UserOperation[] calldata _ops, DecompressionOptions[] calldata _options)
         external
         view
         override
-        returns (bytes memory deflatedOps)
+        returns (bytes memory compressedOps)
     {
         // todo: length validation
-        deflatedOps = abi.encodePacked(uint256(_ops.length).toBytesNPacked(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES));
+        compressedOps = abi.encodePacked(uint256(_ops.length).toBytesNPacked(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES));
         for (uint256 i = 0; i < _ops.length; ++i) {
-            deflatedOps = abi.encode(deflatedOps, _deflateOp(_ops[i], _options[i]));
+            compressedOps = abi.encode(compressedOps, _compressOp(_ops[i], _options[i]));
         }
     }
 }

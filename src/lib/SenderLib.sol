@@ -13,7 +13,7 @@ library SenderLib {
         REGISTER_SENDER // 0x000000
     }
 
-    function inflate(
+    function decompress(
         bytes calldata _slice,
         RegistryLib.RegistryStore storage _registry,
         uint256 _senderRepresentationSizeBytes
@@ -75,10 +75,10 @@ library SenderLib {
         sender = _registry.checkAndGet(_senderId);
     }
 
-    function deflate(RegistryLib.RegistryStore storage _registry, address _sender, uint256 _senderIdSizeBytes)
+    function compress(RegistryLib.RegistryStore storage _registry, address _sender, uint256 _senderIdSizeBytes)
         internal
         view
-        returns (bytes memory deflatedSender)
+        returns (bytes memory compressedSender)
     {
         uint256 senderId = _registry.addrToId[_sender];
         if (senderId == 0) {

@@ -2,19 +2,20 @@
 pragma solidity ^0.8.13;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {EP6CompressionMiddleware} from "src/EP6CompressionMiddleware.sol";
+import {EP6Decompressor} from "src/EP6Decompressor.sol";
 import {AddressRegistry} from "src/AddressRegistry.sol";
-import {RageTradeSubmitDelayedOrderCalldataResolver} from "src/inflator/RageTradeSubmitDelayedOrderCalldataResolver.sol";
-import {BatchedSessionRouterResolver} from "src/inflator/BatchedSessionRouterResolver.sol";
-import {BiconomyVerifyingPaymasterResolver} from "src/inflator/BiconomyVerifyingPaymasterResolver.sol";
+import {RageTradeSubmitDelayedOrderCalldataDecompressor} from
+    "src/inflator/RageTradeSubmitDelayedOrderCalldataDecompressor.sol";
+import {BatchedSessionRouterDecompressor} from "src/inflator/BatchedSessionRouterDecompressor.sol";
+import {BiconomyVerifyingPaymasterDecompressor} from "src/inflator/BiconomyVerifyingPaymasterDecompressor.sol";
 import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
 
 contract CompresssionTest is Test {
     EntryPointStub entryPointStub;
-    EP6CompressionMiddleware epCompressionMiddleware;
-    RageTradeSubmitDelayedOrderCalldataResolver rageTradeSubmitDelayedOrderCalldataResolver;
-    BatchedSessionRouterResolver batchedSessionRouterResolver;
-    BiconomyVerifyingPaymasterResolver biconomyVerifyingPaymasterResolver;
+    EP6Decompressor epCompressionMiddleware;
+    RageTradeSubmitDelayedOrderCalldataDecompressor rageTradeSubmitDelayedOrderCalldataDecompressor;
+    BatchedSessionRouterDecompressor batchedSessionRouterDecompressor;
+    BiconomyVerifyingPaymasterDecompressor biconomyVerifyingPaymasterDecompressor;
 
     struct SessionData {
         uint48 validUntil;
@@ -31,12 +32,13 @@ contract CompresssionTest is Test {
 
     function setUp() public {
         entryPointStub = new EntryPointStub();
-        epCompressionMiddleware = new EP6CompressionMiddleware(IEntryPoint(address(entryPointStub)));
-        rageTradeSubmitDelayedOrderCalldataResolver =
-            new RageTradeSubmitDelayedOrderCalldataResolver(epCompressionMiddleware.dappSmartContractRegistry());
-        batchedSessionRouterResolver = new BatchedSessionRouterResolver(epCompressionMiddleware.signatureRegistry());
-        biconomyVerifyingPaymasterResolver =
-            new BiconomyVerifyingPaymasterResolver(epCompressionMiddleware.paymasterRegistry());
+        epCompressionMiddleware = new EP6Decompressor(IEntryPoint(address(entryPointStub)));
+        rageTradeSubmitDelayedOrderCalldataDecompressor =
+            new RageTradeSubmitDelayedOrderCalldataDecompressor(epCompressionMiddleware.dappSmartContractRegistry());
+        batchedSessionRouterDecompressor =
+            new BatchedSessionRouterDecompressor(epCompressionMiddleware.signatureRegistry());
+        biconomyVerifyingPaymasterDecompressor =
+            new BiconomyVerifyingPaymasterDecompressor(epCompressionMiddleware.paymasterRegistry());
     }
 
     function decodeHandleOpsData(bytes calldata data) public pure returns (UserOperation[] memory, address) {
@@ -78,7 +80,7 @@ contract CompresssionTest is Test {
 
         // Register paymasterId
         uint16 paymasterIdId =
-            uint16(uint256(biconomyVerifyingPaymasterResolver.paymasterIdRegistry().register(paymasterId)));
+            uint16(uint256(biconomyVerifyingPaymasterDecompressor.paymasterIdRegistry().register(paymasterId)));
 
         return abi.encodePacked(paymasterIdId, validUntil, validAfter, uint16(signature.length), signature);
     }
@@ -94,7 +96,7 @@ contract CompresssionTest is Test {
 
             // register svm
             uint16 svmId = uint16(
-                uint256(batchedSessionRouterResolver.svmRegistry().register(sessionData.sessionValidationModule))
+                uint256(batchedSessionRouterDecompressor.svmRegistry().register(sessionData.sessionValidationModule))
             );
 
             uint16 durationInSec = uint16(sessionData.validUntil - sessionData.validAfter);
@@ -133,19 +135,21 @@ contract CompresssionTest is Test {
         // calldata
         bytes memory internalCallData = _compressRageTradeSubmitDelayedOrderCallData(op);
         bytes memory callData = abi.encodePacked(
-            uint16(uint256(rageTradeSubmitDelayedOrderCalldataResolver.registeredId())),
+            uint16(uint256(rageTradeSubmitDelayedOrderCalldataDecompressor.registeredId())),
             uint16(internalCallData.length),
             internalCallData
         );
         // pmd
         bytes memory internalPmd = _compressPaymasterAndData(op);
         bytes memory pmd = abi.encodePacked(
-            uint16(uint256(biconomyVerifyingPaymasterResolver.registeredId())), uint16(internalPmd.length), internalPmd
+            uint16(uint256(biconomyVerifyingPaymasterDecompressor.registeredId())),
+            uint16(internalPmd.length),
+            internalPmd
         );
         // signature (oof)
         bytes memory internalSignature = _compressSignature(op);
         bytes memory signature = abi.encodePacked(
-            uint16(uint256(batchedSessionRouterResolver.registeredId())),
+            uint16(uint256(batchedSessionRouterDecompressor.registeredId())),
             uint16(internalSignature.length),
             internalSignature
         );

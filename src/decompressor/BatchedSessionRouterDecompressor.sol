@@ -3,7 +3,7 @@ pragma solidity ^0.8.23;
 
 import {AddressRegistry} from "./AddressRegistry.sol";
 import {ISmartAccount} from "../smart-account/ISmartAccount.sol";
-import {IInflator} from "../interfaces/IInflator.sol";
+import {IDecompressor} from "../interfaces/IDecompressor.sol";
 import "forge-std/console2.sol";
 
 struct SessionData {
@@ -18,7 +18,7 @@ struct SessionData {
 /**
  * DISCLAIMER: This is a PoC - not gas optimised
  */
-contract BatchedSessionRouterResolver is IInflator {
+contract BatchedSessionRouterDecompressor is IDecompressor {
     address sessionKeyManager = 0x000002FbFfedd9B33F4E7156F2DE8D48945E7489;
     address batchedSessionRouter = 0x00000D09967410f8C76752A104c9848b57ebba55;
     AddressRegistry public svmRegistry = new AddressRegistry();
@@ -48,8 +48,8 @@ contract BatchedSessionRouterResolver is IInflator {
      * }
      *
      *  There are a series of improvements that can be done here:
-     *  1. Hardcode the batchedSessionRouter address in this resolver
-     *  2. Hardcode the sessionKeyManager address in this resolver
+     *  1. Hardcode the batchedSessionRouter address in this Decompressor
+     *  2. Hardcode the sessionKeyManager address in this Decompressor
      *  3. replace 20 byte sessionValidationModule with 2 byte id for (65536 unique sessionValidationModules)
      *
      *  Note: A lot of other stuff can be done like caching merkle proofs, packing data more efficiently etc.
@@ -57,7 +57,7 @@ contract BatchedSessionRouterResolver is IInflator {
      *  This means that there will be significant scope of improvement here in the future.
      */
 
-    function inflate(bytes calldata _data) external view override returns (bytes memory signature) {
+    function decompress(bytes calldata _data) external view override returns (bytes memory signature) {
         // _data:
         // <2 bytes - len(encoded(SessionDatas))> <len bytes - encoded(SessionDatas)> <remaining - encoded(sessionKeySignature)>
         // yeah ik session key signature can itself be better packed.
@@ -149,7 +149,7 @@ contract BatchedSessionRouterResolver is IInflator {
         signature = abi.encode(abi.encode(sessionKeyManager, sessionDatas, sessionKeySignature), batchedSessionRouter);
     }
 
-    function deflate(bytes calldata _data) external view returns (bytes memory compressedData) {
+    function compress(bytes calldata _data) external view returns (bytes memory compressedData) {
         (bytes memory moduleSignature,) = abi.decode(_data, (bytes, address));
         (, SessionData[] memory sessionDatas, bytes memory sessionKeySignature) =
             abi.decode(moduleSignature, (address, SessionData[], bytes));
@@ -160,7 +160,7 @@ contract BatchedSessionRouterResolver is IInflator {
             SessionData memory sessionData = sessionDatas[i];
             bytes2 svmId = bytes2(svmRegistry.reverseRegistry(sessionData.sessionValidationModule));
             if (svmId == bytes2(0)) {
-                revert("BatchedSessionRouterResolver: sessionValidationModule not registered");
+                revert("BatchedSessionRouterDecompressor: sessionValidationModule not registered");
             }
             compressedSessionDatas = abi.encodePacked(
                 compressedSessionDatas,
