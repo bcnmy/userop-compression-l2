@@ -61,7 +61,7 @@ interface IEP6Decompressor {
      * @param _decompressor the paymaster decompressor address
      * @return the paymaster decompressor id, or 0 if not registered
      */
-    function paymasterInfaltorId(IDecompressor _decompressor) external view returns (uint256);
+    function paymasterDecompressorId(IDecompressor _decompressor) external view returns (uint256);
 
     /**
      * @dev Given a signature decompressor address, return the signature decompressor id if registered.
@@ -122,7 +122,7 @@ interface IEP6Decompressor {
      * @param callDataDecompressor the call data decompressor. If address(0), then compression is skipped
      *        and callData is included as it is in the compressed UserOperation.
      */
-    struct DecompressionOptions {
+    struct CompressionOptions {
         IDecompressor paymasterAndDataDecompressor;
         IDecompressor signatureDecompressor;
         IDecompressor initCodeDecompressor;
@@ -130,12 +130,12 @@ interface IEP6Decompressor {
     }
 
     /**
-     * @dev Given a bundle of user operations and inflation options, compresses each user operation and returns the compressed user operations.
+     * @dev Given a bundle of user operations and decompression options, compresses each user operation and returns the compressed user operations.
      * @param _ops the user operations
-     * @param _options the inflation options. Refer to the DecompressionOptions struct above.
+     * @param _options the decompression options. Refer to the CompressionOptions struct above.
      * @return compressedOp the compressed user operations
      */
-    function compressOps(UserOperation[] calldata _ops, DecompressionOptions[] calldata _options)
+    function compressOps(UserOperation[] calldata _ops, CompressionOptions[] calldata _options)
         external
         view
         returns (bytes memory compressedOp);

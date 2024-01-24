@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 library RegistryLib {
-    uint256 constant FIRST_ID = 0x000100;
+    uint256 constant FIRST_ID = 0x0100;
 
     event Registered(uint256 indexed id, address indexed addr, uint256 indexed registryId);
 
@@ -21,7 +21,7 @@ library RegistryLib {
         returns (uint256 id)
     {
         if (2 ** (8 * _keySizeBytes) == _self.nextId) {
-            revert("Registry: no more space for new inflators");
+            revert("Registry: no more space for new decompressors");
         }
 
         if (_addr == address(0)) {

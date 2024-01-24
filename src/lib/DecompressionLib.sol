@@ -4,57 +4,61 @@ pragma solidity ^0.8.23;
 import {RegistryLib} from "./RegistryLib.sol";
 import {IDecompressor} from "../interfaces/IDecompressor.sol";
 import {CastLib} from "./CastLib.sol";
+import {console2} from "forge-std/console2.sol";
 
 library DecompressionLib {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
 
-    // Reserved IDs (upto 0x0000FF)
+    // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
-        DO_NOT_INFLATE, // 0x000000
-        REGISTER_INFLATOR_AND_INFLATE // 0x000001
+        DO_NOT_DECOMPRESS, // 0x0000
+        REGISTER_DECOMPRESSOR_AND_DECOMPRESS // 0x0001
     }
 
     function decompress(
         bytes calldata _slice,
         RegistryLib.RegistryStore storage _registry,
-        uint256 _inflatorIdSizeBytes,
+        uint256 _decompressorIdSizeBytes,
         uint256 _arrayLenSizeBytes
-    ) internal returns (bytes memory inflatedData, bytes calldata nextSlice) {
+    ) internal returns (bytes memory decompressedData, bytes calldata nextSlice) {
         /*
          * Layout
-         * Offset (in bytes)    | Length (in bytes)     | Contents
-         * 0x0                  | _inflatorIdSizeBytes  | The Inflator ID / Reserved ID
-         * _inflatorIdSizeBytes | ??                    | Rest of the data
+         * Offset (in bytes)        | Length (in bytes)         | Contents
+         * 0x0                      | _decompressorIdSizeBytes  | The Decompressor ID / Reserved ID
+         * _decompressorIdSizeBytes | ??                        | Rest of the data
          */
 
         nextSlice = _slice;
 
-        // Extract the inflator id
-        bytes32 inflatorId;
+        // Extract the decompressor id
+        bytes32 decompressorId;
         assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_inflatorIdSizeBytes, 8))
-            inflatorId := shr(bitsToDiscard, calldataload(nextSlice.offset))
-            nextSlice.offset := add(nextSlice.offset, _inflatorIdSizeBytes)
+            let bitsToDiscard := sub(256, mul(_decompressorIdSizeBytes, 8))
+            decompressorId := shr(bitsToDiscard, calldataload(nextSlice.offset))
+
+            nextSlice.offset := add(nextSlice.offset, _decompressorIdSizeBytes)
+            nextSlice.length := sub(nextSlice.length, _decompressorIdSizeBytes)
         }
 
-        if (inflatorId == bytes32(uint256(RESERVED_IDS.DO_NOT_INFLATE))) {
-            (inflatedData, nextSlice) = handleDoNotInflateCase(_slice, _arrayLenSizeBytes);
-        } else if (inflatorId == bytes32(uint256(RESERVED_IDS.REGISTER_INFLATOR_AND_INFLATE))) {
-            (inflatedData, nextSlice) =
-                handleRegisterInflatorAndDecompressCase(_slice, _registry, _inflatorIdSizeBytes, _arrayLenSizeBytes);
-        } else if (uint256(inflatorId) >= RegistryLib.FIRST_ID) {
-            (inflatedData, nextSlice) =
-                handleDecompressCase(_slice, _registry, _inflatorIdSizeBytes, _arrayLenSizeBytes);
+        if (decompressorId == bytes32(uint256(RESERVED_IDS.DO_NOT_DECOMPRESS))) {
+            (decompressedData, nextSlice) = handleDoNotDecompressCase(nextSlice, _arrayLenSizeBytes);
+        } else if (decompressorId == bytes32(uint256(RESERVED_IDS.REGISTER_DECOMPRESSOR_AND_DECOMPRESS))) {
+            (decompressedData, nextSlice) = handleRegisterDecompressorAndDecompressCase(
+                nextSlice, _registry, _decompressorIdSizeBytes, _arrayLenSizeBytes
+            );
+        } else if (uint256(decompressorId) >= RegistryLib.FIRST_ID) {
+            (decompressedData, nextSlice) =
+                handleDecompressCase(nextSlice, _registry, _decompressorIdSizeBytes, _arrayLenSizeBytes);
         } else {
-            revert("DeflationLib: invalid inflator id");
+            revert("compressionLib: invalid decompressor id");
         }
     }
 
-    function handleDoNotInflateCase(bytes calldata _slice, uint256 _arrayLenSizeBytes)
+    function handleDoNotDecompressCase(bytes calldata _slice, uint256 _arrayLenSizeBytes)
         internal
         pure
-        returns (bytes memory inflatedData, bytes calldata nextSlice)
+        returns (bytes memory decompressedData, bytes calldata nextSlice)
     {
         /*
          * Layout
@@ -70,38 +74,42 @@ library DecompressionLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
             arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
+
             nextSlice.offset := add(nextSlice.offset, _arrayLenSizeBytes)
+            nextSlice.length := sub(nextSlice.length, _arrayLenSizeBytes)
         }
 
         // Copy the array
-        inflatedData = new bytes(arrayLen);
+        decompressedData = nextSlice[:arrayLen];
         assembly ("memory-safe") {
-            calldatacopy(inflatedData, nextSlice.offset, arrayLen)
             nextSlice.offset := add(nextSlice.offset, arrayLen)
+            nextSlice.length := sub(nextSlice.length, arrayLen)
         }
     }
 
-    function handleRegisterInflatorAndDecompressCase(
+    function handleRegisterDecompressorAndDecompressCase(
         bytes calldata _slice,
         RegistryLib.RegistryStore storage _registry,
-        uint256 _inflatorIdSizeBytes,
+        uint256 _decompressorIdSizeBytes,
         uint256 _arrayLenSizeBytes
-    ) internal returns (bytes memory inflatedData, bytes calldata nextSlice) {
+    ) internal returns (bytes memory decompressedData, bytes calldata nextSlice) {
         /*
          * Layout
          * Offset (in bytes)          | Length (in bytes)     | Contents
-         * 0x0                        | 20                    | Inflator Address
+         * 0x0                        | 20                    | Decompressor Address
          * 0x14                       | _arraryLenSizeBytes   | Length of the Array of compressed data
          * 0x14 + _arraryLenSizeBytes | len                   | compressed data
          */
 
         nextSlice = _slice;
 
-        // Extract the inflator address
-        address inflatorAddr;
+        // Extract the decompressor address
+        address decompressorAddr;
         assembly ("memory-safe") {
-            inflatorAddr := shr(96, calldataload(nextSlice.offset))
+            decompressorAddr := shr(96, calldataload(nextSlice.offset))
+
             nextSlice.offset := add(nextSlice.offset, 20)
+            nextSlice.length := sub(nextSlice.length, 20)
         }
 
         // Extract the array length
@@ -109,57 +117,61 @@ library DecompressionLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
             arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
+
             nextSlice.offset := add(nextSlice.offset, _arrayLenSizeBytes)
+            nextSlice.length := sub(nextSlice.length, _arrayLenSizeBytes)
         }
 
-        // Register the inflator
-        _registry.checkAndRegister(inflatorAddr, _inflatorIdSizeBytes);
+        // Register the decompressor
+        _registry.checkAndRegister(decompressorAddr, _decompressorIdSizeBytes);
 
         // Copy the array
-        bytes memory compressedData = new bytes(arrayLen);
+        bytes memory compressedData = nextSlice[:arrayLen];
         assembly ("memory-safe") {
-            calldatacopy(compressedData, nextSlice.offset, arrayLen)
             nextSlice.offset := add(nextSlice.offset, arrayLen)
+            nextSlice.length := sub(nextSlice.length, arrayLen)
         }
 
         // Decompress the data
-        try IDecompressor(inflatorAddr).decompress(compressedData) returns (bytes memory _decompressdData) {
-            inflatedData = _decompressdData;
+        try IDecompressor(decompressorAddr).decompress(compressedData) returns (bytes memory _decompressdData) {
+            decompressedData = _decompressdData;
         } catch Error(string memory reason) {
-            revert(string.concat("DeflationLib: inflator failed to inflate: ", reason));
+            revert(string.concat("compressionLib: decompressor failed to decompress: ", reason));
         } catch {
-            revert("DeflationLib: inflator failed to inflate");
+            revert("compressionLib: decompressor failed to decompress");
         }
     }
 
     function handleDecompressCase(
         bytes calldata _slice,
         RegistryLib.RegistryStore storage _registry,
-        uint256 _inflatorIdSizeBytes,
+        uint256 _decompressorIdSizeBytes,
         uint256 _arrayLenSizeBytes
-    ) internal returns (bytes memory inflatedData, bytes calldata nextSlice) {
+    ) internal returns (bytes memory decompressedData, bytes calldata nextSlice) {
         /*
          * Layout
-         * Offset (in bytes)                          | Length (in bytes)     | Contents
-         * 0x0                                        | _inflatorIdSizeBytes  | Inflator ID
-         * _inflatorIdSizeBytes                       | _arraryLenSizeBytes   | Length of the Array of compressed data
-         * _inflatorIdSizeBytes + _arraryLenSizeBytes | len                   | compressed data
+         * Offset (in bytes)                              | Length (in bytes)         | Contents
+         * 0x0                                            | _decompressorIdSizeBytes  | Decompressor ID
+         * _decompressorIdSizeBytes                       | _arraryLenSizeBytes       | Length of the Array of compressed data
+         * _decompressorIdSizeBytes + _arraryLenSizeBytes | len                       | compressed data
          */
 
         nextSlice = _slice;
-        uint256 inflatorId;
+        uint256 decompressorId;
 
-        // Extract the inflator id
+        // Extract the decompressor id
         assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_inflatorIdSizeBytes, 8))
-            inflatorId := shr(bitsToDiscard, calldataload(nextSlice.offset))
-            nextSlice.offset := add(nextSlice.offset, _inflatorIdSizeBytes)
+            let bitsToDiscard := sub(256, mul(_decompressorIdSizeBytes, 8))
+            decompressorId := shr(bitsToDiscard, calldataload(nextSlice.offset))
+
+            nextSlice.offset := add(nextSlice.offset, _decompressorIdSizeBytes)
+            nextSlice.length := sub(nextSlice.length, _decompressorIdSizeBytes)
         }
 
-        // Get the inflator
-        IDecompressor inflator = IDecompressor(_registry.checkAndGet(inflatorId));
-        if (address(inflator) == address(0)) {
-            revert("DeflationLib: inflator not registered");
+        // Get the decompressor
+        IDecompressor decompressor = IDecompressor(_registry.checkAndGet(decompressorId));
+        if (address(decompressor) == address(0)) {
+            revert("compressionLib: decompressor not registered");
         }
 
         // Extract the array length
@@ -167,58 +179,60 @@ library DecompressionLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
             arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
+
             nextSlice.offset := add(nextSlice.offset, _arrayLenSizeBytes)
+            nextSlice.length := sub(nextSlice.length, _arrayLenSizeBytes)
         }
 
         // Copy the array
-        bytes memory compressedData = new bytes(arrayLen);
+        bytes memory compressedData = nextSlice[:arrayLen];
         assembly ("memory-safe") {
-            calldatacopy(compressedData, nextSlice.offset, arrayLen)
             nextSlice.offset := add(nextSlice.offset, arrayLen)
+            nextSlice.length := sub(nextSlice.length, arrayLen)
         }
 
         // Decompress the data
-        try inflator.decompress(compressedData) returns (bytes memory _decompressdData) {
-            inflatedData = _decompressdData;
+        try decompressor.decompress(compressedData) returns (bytes memory _decompressdData) {
+            decompressedData = _decompressdData;
         } catch Error(string memory reason) {
-            revert(string.concat("DeflationLib: inflator failed to inflate: ", reason));
+            revert(string.concat("compressionLib: decompressor failed to decompress: ", reason));
         } catch {
-            revert("DeflationLib: inflator failed to inflate");
+            revert("compressionLib: decompressor failed to decompress");
         }
     }
 
     function compress(
         bytes calldata _data,
         RegistryLib.RegistryStore storage _registry,
-        IDecompressor _inflator,
-        uint256 _inflatorIdSizeBytes,
+        IDecompressor _decompressor,
+        uint256 _decompressorIdSizeBytes,
         uint256 _lengthSizeBytes
     ) internal view returns (bytes memory) {
-        // Do not inflate
-        if (address(_inflator) == address(0)) {
+        // Do not decompress
+        if (address(_decompressor) == address(0)) {
             return abi.encodePacked(
-                uint256(RESERVED_IDS.DO_NOT_INFLATE).toBytesNPacked(_inflatorIdSizeBytes),
+                uint256(RESERVED_IDS.DO_NOT_DECOMPRESS).toBytesNPacked(_decompressorIdSizeBytes),
                 _data.length.toBytesNPacked(_lengthSizeBytes),
                 _data
             );
         }
 
-        bytes memory compressedData = _inflator.compress(_data);
+        bytes memory compressedData = _decompressor.compress(_data);
 
-        uint256 inflatorId = _registry.addrToId[address(_inflator)];
-        // Register and inflate
-        if (inflatorId == 0) {
+        uint256 decompressorId = _registry.addrToId[address(_decompressor)];
+        // Register and decompress
+        if (decompressorId == 0) {
             return abi.encodePacked(
-                uint256(RESERVED_IDS.REGISTER_INFLATOR_AND_INFLATE).toBytesNPacked(_inflatorIdSizeBytes),
-                address(_inflator),
+                uint256(RESERVED_IDS.REGISTER_DECOMPRESSOR_AND_DECOMPRESS).toBytesNPacked(_decompressorIdSizeBytes),
+                address(_decompressor),
                 compressedData.length.toBytesNPacked(_lengthSizeBytes),
                 compressedData
             );
         }
-        // Normal Inflate Case
+        // Normal Decompress Case
         else {
             return abi.encodePacked(
-                inflatorId.toBytesNPacked(_inflatorIdSizeBytes),
+                decompressorId.toBytesNPacked(_decompressorIdSizeBytes),
                 compressedData.length.toBytesNPacked(_lengthSizeBytes),
                 compressedData
             );

@@ -112,7 +112,7 @@ contract BatchedSessionRouterDecompressor is IDecompressor {
                 offset := add(offset, div(48, 8))
 
                 bitsToDiscard := sub(256, mul(2, 8))
-                svmId := shr(bitsToDiscard, mload(offset))
+                svmId := shr(bitsToDiscard, calldataload(offset))
                 offset := add(offset, 2)
 
                 // extract dynamic length sessionKeyData
@@ -154,28 +154,34 @@ contract BatchedSessionRouterDecompressor is IDecompressor {
         (, SessionData[] memory sessionDatas, bytes memory sessionKeySignature) =
             abi.decode(moduleSignature, (address, SessionData[], bytes));
 
-        bytes memory compressedSessionDatas;
+        bytes[] memory compressedSessionDatas = new bytes[](sessionDatas.length);
 
         for (uint256 i = 0; i < sessionDatas.length; i++) {
             SessionData memory sessionData = sessionDatas[i];
-            bytes2 svmId = bytes2(svmRegistry.reverseRegistry(sessionData.sessionValidationModule));
-            if (svmId == bytes2(0)) {
+            bytes32 svmId = svmRegistry.reverseRegistry(sessionData.sessionValidationModule);
+            if (svmId == bytes32(0)) {
                 revert("BatchedSessionRouterDecompressor: sessionValidationModule not registered");
             }
-            compressedSessionDatas = abi.encodePacked(
-                compressedSessionDatas,
-                abi.encodePacked(
-                    sessionData.validUntil,
-                    sessionData.validAfter,
-                    svmId,
-                    abi.encode(
-                        sessionData.sessionKeyData, abi.encode(sessionData.merkleProof), sessionData.callSpecificData
-                    )
-                )
+
+            bytes memory encodedMerkleProof = abi.encode(sessionData.merkleProof);
+
+            compressedSessionDatas[i] = abi.encodePacked(
+                sessionData.validUntil,
+                sessionData.validAfter,
+                uint16(uint256(svmId)),
+                uint16(sessionData.sessionKeyData.length),
+                sessionData.sessionKeyData,
+                uint16(encodedMerkleProof.length),
+                encodedMerkleProof,
+                uint16(sessionData.callSpecificData.length),
+                sessionData.callSpecificData
             );
         }
 
-        compressedData =
-            abi.encodePacked(uint16(compressedSessionDatas.length), compressedSessionDatas, sessionKeySignature);
+        bytes memory encodedCompressedSessionDatas = abi.encode(compressedSessionDatas);
+
+        compressedData = abi.encodePacked(
+            uint16(encodedCompressedSessionDatas.length), encodedCompressedSessionDatas, sessionKeySignature
+        );
     }
 }

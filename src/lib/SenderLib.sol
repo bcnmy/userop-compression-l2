@@ -4,13 +4,15 @@ pragma solidity ^0.8.23;
 import {RegistryLib} from "./RegistryLib.sol";
 import {CastLib} from "./CastLib.sol";
 
+import {console2} from "forge-std/console2.sol";
+
 library SenderLib {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
 
-    // Reserved IDs (upto 0x0000FF)
+    // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
-        REGISTER_SENDER // 0x000000
+        REGISTER_SENDER // 0x0000
     }
 
     function decompress(
@@ -32,15 +34,17 @@ library SenderLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_senderRepresentationSizeBytes, 8))
             senderId := shr(bitsToDiscard, calldataload(nextSlice.offset))
+
             nextSlice.offset := add(nextSlice.offset, _senderRepresentationSizeBytes)
+            nextSlice.length := sub(nextSlice.length, _senderRepresentationSizeBytes)
         }
 
         if (senderId == uint256(RESERVED_IDS.REGISTER_SENDER)) {
-            (sender, nextSlice) = handleRegisterSenderCase(_slice, _registry, _senderRepresentationSizeBytes);
+            (sender, nextSlice) = handleRegisterSenderCase(nextSlice, _registry, _senderRepresentationSizeBytes);
         } else if (senderId >= RegistryLib.FIRST_ID) {
-            sender = handleDeflationCase(senderId, _registry);
+            sender = handleCompressionCase(senderId, _registry);
         } else {
-            revert("DeflationLib: invalid sender id");
+            revert("compressionLib: invalid sender id");
         }
     }
 
@@ -60,14 +64,16 @@ library SenderLib {
         // Extract the sender address
         assembly ("memory-safe") {
             sender := shr(96, calldataload(nextSlice.offset))
+
             nextSlice.offset := add(nextSlice.offset, 20)
+            nextSlice.length := sub(nextSlice.length, 20)
         }
 
         // Register the sender
         _registry.checkAndRegister(sender, _senderIdSizeBytes);
     }
 
-    function handleDeflationCase(uint256 _senderId, RegistryLib.RegistryStore storage _registry)
+    function handleCompressionCase(uint256 _senderId, RegistryLib.RegistryStore storage _registry)
         internal
         view
         returns (address sender)

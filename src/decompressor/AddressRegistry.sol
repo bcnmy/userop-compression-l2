@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 contract AddressRegistry {
-    uint256 nextId = 0;
+    uint256 nextId = 1;
 
     mapping(bytes32 id => address) public registry;
     mapping(address => bytes32) public reverseRegistry;
