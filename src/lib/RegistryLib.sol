@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {console2} from "forge-std/console2.sol";
+
 library RegistryLib {
     uint256 constant FIRST_ID = 0x0100;
 

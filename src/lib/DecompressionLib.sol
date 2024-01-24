@@ -49,7 +49,7 @@ library DecompressionLib {
             );
         } else if (uint256(decompressorId) >= RegistryLib.FIRST_ID) {
             (decompressedData, nextSlice) =
-                handleDecompressCase(nextSlice, _registry, _decompressorIdSizeBytes, _arrayLenSizeBytes);
+                handleDecompressCase(nextSlice, _registry, uint256(decompressorId), _arrayLenSizeBytes);
         } else {
             revert("compressionLib: invalid decompressor id");
         }
@@ -145,31 +145,19 @@ library DecompressionLib {
     function handleDecompressCase(
         bytes calldata _slice,
         RegistryLib.RegistryStore storage _registry,
-        uint256 _decompressorIdSizeBytes,
+        uint256 _decompressorId,
         uint256 _arrayLenSizeBytes
     ) internal returns (bytes memory decompressedData, bytes calldata nextSlice) {
         /*
          * Layout
-         * Offset (in bytes)                              | Length (in bytes)         | Contents
-         * 0x0                                            | _decompressorIdSizeBytes  | Decompressor ID
-         * _decompressorIdSizeBytes                       | _arraryLenSizeBytes       | Length of the Array of compressed data
-         * _decompressorIdSizeBytes + _arraryLenSizeBytes | len                       | compressed data
+         * Offset (in bytes)         | Length (in bytes)         | Contents
+         * 0x0                       | _arraryLenSizeBytes       | Length of the Array of compressed data
+         *  _arraryLenSizeBytes      | len                       | compressed data
          */
 
         nextSlice = _slice;
-        uint256 decompressorId;
 
-        // Extract the decompressor id
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_decompressorIdSizeBytes, 8))
-            decompressorId := shr(bitsToDiscard, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, _decompressorIdSizeBytes)
-            nextSlice.length := sub(nextSlice.length, _decompressorIdSizeBytes)
-        }
-
-        // Get the decompressor
-        IDecompressor decompressor = IDecompressor(_registry.checkAndGet(decompressorId));
+        IDecompressor decompressor = IDecompressor(_registry.checkAndGet(_decompressorId));
         if (address(decompressor) == address(0)) {
             revert("compressionLib: decompressor not registered");
         }
@@ -228,9 +216,8 @@ library DecompressionLib {
                 compressedData.length.toBytesNPacked(_lengthSizeBytes),
                 compressedData
             );
-        }
-        // Normal Decompress Case
-        else {
+        } else {
+            // Normal Decompress Case
             return abi.encodePacked(
                 decompressorId.toBytesNPacked(_decompressorIdSizeBytes),
                 compressedData.length.toBytesNPacked(_lengthSizeBytes),

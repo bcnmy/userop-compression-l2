@@ -80,14 +80,12 @@ contract RageTradeCompresssionTest is BaseTest {
         }
     }
 
-    function testCompression() external {
+    function testCompressionInitialRegistrationOp() external {
         (UserOperation[] memory ops, address originalBeneficiary) = this.decodeHandleOpsData(originalHandleOpsCalldata);
 
         UserOperation memory originalOp = ops[0];
         _prepareForPaymasterAndDataCompression(originalOp);
         _prepareForSignatureCompression(originalOp);
-
-        console2.log("calldata Compressor", address(rageTradeSubmitDelayedOrderCalldataDecompressor));
 
         IEP6Decompressor.CompressionOptions memory options = IEP6Decompressor.CompressionOptions({
             paymasterAndDataDecompressor: biconomyVerifyingPaymasterDecompressor,
@@ -97,14 +95,67 @@ contract RageTradeCompresssionTest is BaseTest {
         });
         bytes memory compressedOp = epDecompressor.compressOps(toArray(originalOp), toArray(options));
 
-        console2.log("Original Handle Ops Calldata:");
-        console2.logBytes(originalHandleOpsCalldata);
-        console2.log("Compressed Op:");
-        console2.logBytes(compressedOp);
+        vm.prank(originalBeneficiary);
+        (bool success,) = address(epDecompressor).call(compressedOp);
+        assertTrue(success, "Call to epDecompressor failed");
+
+        assertEq(entryPointStub.beneficiary(), originalBeneficiary, "Beneficiary mismatch");
+        assertEq(entryPointStub.userOp().sender, originalOp.sender, "Sender mismatch");
+        assertEq(entryPointStub.userOp().nonce, originalOp.nonce, "Nonce mismatch");
+        assertEq(entryPointStub.userOp().preVerificationGas, originalOp.preVerificationGas, "PVG mismatch");
+        assertApproxEqRel(
+            entryPointStub.userOp().verificationGasLimit,
+            originalOp.verificationGasLimit,
+            5e16,
+            "Verification gas limit mismatch"
+        );
+        assertApproxEqRel(
+            entryPointStub.userOp().callGasLimit, originalOp.callGasLimit, 1e16, "Call gas limit mismatch"
+        );
+        assertApproxEqRel(
+            entryPointStub.userOp().maxFeePerGas, originalOp.maxFeePerGas, 1e16, "Max fee per gas mismatch"
+        );
+        assertApproxEqRel(
+            entryPointStub.userOp().maxPriorityFeePerGas,
+            originalOp.maxPriorityFeePerGas,
+            1e16,
+            "Max priority fee per gas mismatch"
+        );
+        assertEq(entryPointStub.userOp().callData, originalOp.callData, "Call data mismatch");
+        assertEq(entryPointStub.userOp().paymasterAndData, originalOp.paymasterAndData, "Paymaster and data mismatch");
+        assertEq(entryPointStub.userOp().signature, originalOp.signature, "Signature mismatch");
+
+        uint256 originalCalldataCost = calldataCost(originalHandleOpsCalldata);
+        uint256 compressedCalldataCost = calldataCost(compressedOp);
+        console2.log("Original calldata cost:", originalCalldataCost);
+        console2.log("Compressed calldata cost:", compressedCalldataCost);
+        uint256 reductionPercentage = (originalCalldataCost - compressedCalldataCost) * 100 / originalCalldataCost;
+        console2.log("Reduction percentage:", reductionPercentage);
+    }
+
+    function testCompressionPostRegistration() external {
+        (UserOperation[] memory ops, address originalBeneficiary) = this.decodeHandleOpsData(originalHandleOpsCalldata);
+
+        UserOperation memory originalOp = ops[0];
+        _prepareForPaymasterAndDataCompression(originalOp);
+        _prepareForSignatureCompression(originalOp);
+
+        IEP6Decompressor.CompressionOptions memory options = IEP6Decompressor.CompressionOptions({
+            paymasterAndDataDecompressor: biconomyVerifyingPaymasterDecompressor,
+            signatureDecompressor: batchedSessionRouterDecompressor,
+            initCodeDecompressor: IDecompressor(address(0)),
+            callDataDecompressor: rageTradeSubmitDelayedOrderCalldataDecompressor
+        });
+        bytes memory compressedOp = epDecompressor.compressOps(toArray(originalOp), toArray(options));
 
         vm.prank(originalBeneficiary);
         (bool success,) = address(epDecompressor).call(compressedOp);
         assertTrue(success, "Call to epDecompressor failed");
+
+        compressedOp = epDecompressor.compressOps(toArray(originalOp), toArray(options));
+        vm.prank(originalBeneficiary);
+        (success,) = address(epDecompressor).call(compressedOp);
+        assertTrue(success, "2nd Call to epDecompressor failed");
 
         assertEq(entryPointStub.beneficiary(), originalBeneficiary, "Beneficiary mismatch");
         assertEq(entryPointStub.userOp().sender, originalOp.sender, "Sender mismatch");
