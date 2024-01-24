@@ -46,6 +46,9 @@ interface IEP6Decompressor {
         UserOperation userOp
     );
 
+    error SimulateHandleOpDidNotRevert();
+    error SimulateValidationDidNotRevert();
+
     /**
      * @dev Given a sender address, return the sender id if registered.
      * @param _sender the sender address

@@ -2,18 +2,20 @@
 pragma solidity ^0.8.23;
 
 import {IDecompressor} from "./interfaces/IDecompressor.sol";
-import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {IEntryPoint, UserOperation, IStakeManager} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {BytesLib} from "solidity-bytes-utils/BytesLib.sol";
 import {IEP6Decompressor} from "./interfaces/IEP6Decompressor.sol";
 import {RegistryLib} from "./lib/RegistryLib.sol";
 import {DecompressionLib} from "./lib/DecompressionLib.sol";
 import {SenderLib} from "./lib/SenderLib.sol";
 import {CastLib} from "./lib/CastLib.sol";
 
-// TODO: move to compress/decompress terminology
+// TODO: Custom Errors
 
 contract EP6Decompressor is IEP6Decompressor {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
+    using BytesLib for bytes;
 
     // userOp.sender
     // Theoretical maximum of 4B unique senders
@@ -397,20 +399,47 @@ contract EP6Decompressor is IEP6Decompressor {
      * EntryPoint wrappers
      */
 
-    // TODO: catch and throw custom error to include the decompressed op
     /// @inheritdoc IEP6Decompressor
     function simulateHandleCompressedOp(bytes calldata _compressdOp, address _target, bytes calldata _targetCallData)
         external
     {
         (UserOperation memory decompressedOp,) = _decompressOp(_compressdOp);
-        entryPointV6.simulateHandleOp(decompressedOp, _target, _targetCallData);
+        try entryPointV6.simulateHandleOp(decompressedOp, _target, _targetCallData) {}
+        catch (bytes memory revertData) {
+            (
+                uint256 preOpGas,
+                uint256 paid,
+                uint48 validAfter,
+                uint48 validUntil,
+                bool targetSuccess,
+                bytes memory targetResult
+            ) = abi.decode(revertData.slice(4, revertData.length - 4), (uint256, uint256, uint48, uint48, bool, bytes));
+            revert ExecutionResultWithUserOperation(
+                preOpGas, paid, validAfter, validUntil, targetSuccess, targetResult, decompressedOp
+            );
+        }
+
+        revert SimulateHandleOpDidNotRevert();
     }
 
-    // TODO: catch and throw custom error to include the decompressed op
     /// @inheritdoc IEP6Decompressor
     function simulateValidationCompressedOp(bytes calldata _compressdOp) external {
         (UserOperation memory decompressedOp,) = _decompressOp(_compressdOp);
-        entryPointV6.simulateValidation(decompressedOp);
+        try entryPointV6.simulateValidation(decompressedOp) {}
+        catch (bytes memory revertData) {
+            (
+                IEntryPoint.ReturnInfo memory returnInfo,
+                IStakeManager.StakeInfo memory senderInfo,
+                IStakeManager.StakeInfo memory factoryInfo,
+                IStakeManager.StakeInfo memory paymasterInfo
+            ) = abi.decode(
+                revertData.slice(4, revertData.length - 4),
+                (IEntryPoint.ReturnInfo, IStakeManager.StakeInfo, IStakeManager.StakeInfo, IStakeManager.StakeInfo)
+            );
+            revert ValidationResultWithUserOperation(returnInfo, senderInfo, factoryInfo, paymasterInfo, decompressedOp);
+        }
+
+        revert SimulateValidationDidNotRevert();
     }
 
     /**
