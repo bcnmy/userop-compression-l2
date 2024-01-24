@@ -9,14 +9,15 @@ import {InflationLib} from "./lib/InflationLib.sol";
 import {SenderLib} from "./lib/SenderLib.sol";
 import {CastLib} from "./lib/CastLib.sol";
 
+// TODO: move to compress/decompress terminology
+
 contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
 
     // userOp.sender
-    // Based on the fact the max no. of active addresses on Ethereum Mainnet = 1.5M
-    // log2(1.5M) / 8 = 2.56
-    uint256 public constant SENDER_REPRESENTATION_SIZE_BYTES = 3;
+    // Theoretical maximum of 4B unique senders
+    uint256 public constant SENDER_REPRESENTATION_SIZE_BYTES = 4;
 
     // userOp.nonce
     // We can fetch the next valid for the given key based on the SA address and the key itself.
@@ -385,6 +386,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
      * EntryPoint wrappers
      */
 
+    // TODO: catch and throw custom error to include the inflated op
     function simulateHandleDeflatedOp(bytes calldata _deflatedOp, address _target, bytes calldata _targetCallData)
         external
         returns (UserOperation memory inflatedOp)
@@ -393,6 +395,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         entryPointV6.simulateHandleOp(inflatedOp, _target, _targetCallData);
     }
 
+    // TODO: catch and throw custom error to include the inflated op
     function simulateValidationDeflatedOp(bytes calldata _deflatedOp)
         external
         returns (UserOperation memory inflatedOp)
@@ -464,6 +467,7 @@ contract EP6CompressionMiddleware is IEP6CompressionMiddleware {
         override
         returns (bytes memory deflatedOps)
     {
+        // todo: length validation
         deflatedOps = abi.encodePacked(uint256(_ops.length).toBytesNPacked(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES));
         for (uint256 i = 0; i < _ops.length; ++i) {
             deflatedOps = abi.encode(deflatedOps, _deflateOp(_ops[i], _options[i]));
