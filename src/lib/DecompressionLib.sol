@@ -6,8 +6,6 @@ import {IDecompressor} from "../interfaces/IDecompressor.sol";
 import {CastLib} from "./CastLib.sol";
 import {CalldataReadLib} from "./CalldataReadLib.sol";
 
-import {console2} from "forge-std/console2.sol";
-
 library DecompressionLib {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
@@ -16,7 +14,6 @@ library DecompressionLib {
     error InvalidDecompressorId(uint256 decompressorId);
     error DecompressorFailedToDecompressWithReason(IDecompressor decompressor, bytes reason);
     error DecompressorFailedToCompressWithReason(IDecompressor decompressor, bytes reason);
-    error DecompressorNotRegistered(IDecompressor decompressor);
 
     // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
@@ -137,9 +134,6 @@ library DecompressionLib {
         nextSlice = _slice;
 
         IDecompressor decompressor = IDecompressor(_registry.checkAndGet(_decompressorId));
-        if (address(decompressor) == address(0)) {
-            revert DecompressorNotRegistered(decompressor);
-        }
 
         // Extract the array length
         uint256 arrayLen = nextSlice.read(_arrayLenSizeBytes);
