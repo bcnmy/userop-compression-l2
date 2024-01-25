@@ -3,12 +3,14 @@ pragma solidity ^0.8.23;
 
 import {RegistryLib} from "./RegistryLib.sol";
 import {CastLib} from "./CastLib.sol";
+import {CalldataReadLib} from "./CalldataReadLib.sol";
 
 import {console2} from "forge-std/console2.sol";
 
 library SenderLib {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
+    using CalldataReadLib for bytes;
 
     // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
@@ -30,11 +32,7 @@ library SenderLib {
         nextSlice = _slice;
 
         // Extract the sender id
-        uint256 senderId;
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_senderRepresentationSizeBytes, 8))
-            senderId := shr(bitsToDiscard, calldataload(nextSlice.offset))
-        }
+        uint256 senderId = nextSlice.read(_senderRepresentationSizeBytes);
         nextSlice = nextSlice[_senderRepresentationSizeBytes:];
 
         if (senderId == uint256(RESERVED_IDS.REGISTER_SENDER)) {
@@ -60,9 +58,7 @@ library SenderLib {
         nextSlice = _slice;
 
         // Extract the sender address
-        assembly ("memory-safe") {
-            sender := shr(96, calldataload(nextSlice.offset))
-        }
+        sender = address(uint160(nextSlice.read(20)));
         nextSlice = nextSlice[20:];
 
         // Register the sender

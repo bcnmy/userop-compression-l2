@@ -9,6 +9,7 @@ import {RegistryLib} from "./lib/RegistryLib.sol";
 import {DecompressionLib} from "./lib/DecompressionLib.sol";
 import {SenderLib} from "./lib/SenderLib.sol";
 import {CastLib} from "./lib/CastLib.sol";
+import {CalldataReadLib} from "./lib/CalldataReadLib.sol";
 
 import {console2} from "forge-std/console2.sol";
 
@@ -18,83 +19,154 @@ contract EP6Decompressor is IEP6Decompressor {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
     using BytesLib for bytes;
+    using CalldataReadLib for bytes;
 
     // userOp.sender
     // Theoretical maximum of 4B unique senders
-    uint256 public constant SENDER_REPRESENTATION_SIZE_BYTES = 4;
+    uint256 public immutable SENDER_REPRESENTATION_SIZE_BYTES = 4;
 
     // userOp.nonce
     // We can fetch the next valid for the given key based on the SA address and the key itself.
     // Therefore we do not need to pass the 64 bit 'value' in the calldata.
-    uint256 public constant NONCE_REPRESENTATION_SIZE_BYTES = 24;
+    uint256 public immutable NONCE_REPRESENTATION_SIZE_BYTES = 24;
 
     // userOp.preVerificationGas
     // By definition, the pre-verification gas cannot be computed on-chain.
     // Also, the SA/paymaster will always pay the FULL pre-verification gas.
     // therefore, it has to be supplied as it is.
     // We can assume an upper bound of 10B to bound it to 5 bytes instead of the usual 32.
-    uint256 constant PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES = 5;
+    uint256 public immutable PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES = 5;
 
-    // TODO: userOp.verificationGasLimit
-    // TODO: Multiplier from constructor
     // The verification gas limit can be approximated as the next greatest multiple of 5,000
     // Since SA/paymaster do not pay for unused gas (as of EPv0.6), this is a safe approximation.
     // Assuming a maximum of 1M gas, we can bound it to 1 byte instead of the usual 32.
-    uint256 constant VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES = 1;
-    uint256 constant VERIFICATION_GAS_LIMIT_MULTIPLIER = 5000;
+    uint256 public immutable VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES = 1;
+    uint256 public immutable VERIFICATION_GAS_LIMIT_MULTIPLIER = 5000;
 
-    // TODO: userOp.callGasLimit
-    // TODO: Multiplier from constructor
     // The call gas limit can be approximated as the next greatest multiple of 50,000
-    uint256 constant CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES = 1;
-    uint256 constant CALL_GAS_LIMIT_MULTIPLIER = 50000;
+    uint256 public immutable CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES = 1;
+    uint256 public immutable CALL_GAS_LIMIT_MULTIPLIER = 50000;
 
     // userOp.maxPriorityFeePerGas
     // The following guarantees a maximum of ~4300 gwei
-    // TODO: Multiplier from constructor
-    uint256 constant MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES = 4;
-    uint256 constant MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER = 0.000001 gwei;
+    uint256 public immutable MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES = 4;
+    uint256 public immutable MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER = 0.000001 gwei;
 
     // userOp.maxFeePerGas
     // The following guarantees a maximum of ~43k gwei
-    // TODO: Multiplier from constructor
-    uint256 constant MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES = 4;
-    uint256 constant MAX_FEE_PER_GAS_MULTIPLIER = 0.00001 gwei;
+    uint256 public immutable MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES = 4;
+    uint256 public immutable MAX_FEE_PER_GAS_MULTIPLIER = 0.00001 gwei;
 
     // userOp.initCode
-    uint256 constant INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
-    uint256 constant INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // userOp.paymasterAndData
-    uint256 constant PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
-    uint256 constant PMD_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable PMD_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // userOp.calldata
-    uint256 constant CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
-    uint256 constant CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // userOp.signature
-    uint256 constant SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
-    uint256 constant SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = 2;
+    uint256 public immutable SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES = 2;
 
     // Bundling
     // Support a max bundle length of 256
-    uint256 constant BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES = 1;
+    uint256 public BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES = 1;
 
     IEntryPoint public immutable entryPointV6;
+
+    // Registries
     RegistryLib.RegistryStore public senderRegistry;
     RegistryLib.RegistryStore public paymasterDecompressorRegistry;
     RegistryLib.RegistryStore public signatureDecompressorRegistry;
     RegistryLib.RegistryStore public calldataDecompressorRegistry;
     RegistryLib.RegistryStore public initCodeDecompressorRegistry;
 
-    constructor(IEntryPoint _entryPointV6) {
+    constructor(IEntryPoint _entryPointV6, EP6DecompressorConfiguration memory _config) {
         entryPointV6 = _entryPointV6;
+
+        // Initialize the registries
         senderRegistry.initialize();
         paymasterDecompressorRegistry.initialize();
         signatureDecompressorRegistry.initialize();
         calldataDecompressorRegistry.initialize();
         initCodeDecompressorRegistry.initialize();
+
+        // Override the default values if provided
+        SENDER_REPRESENTATION_SIZE_BYTES =
+            _resolveValue(SENDER_REPRESENTATION_SIZE_BYTES, _config.SENDER_REPRESENTATION_SIZE_BYTES);
+
+        NONCE_REPRESENTATION_SIZE_BYTES =
+            _resolveValue(NONCE_REPRESENTATION_SIZE_BYTES, _config.NONCE_REPRESENTATION_SIZE_BYTES);
+
+        PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES, _config.PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES
+        );
+
+        VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES, _config.VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES
+        );
+        VERIFICATION_GAS_LIMIT_MULTIPLIER =
+            _resolveValue(VERIFICATION_GAS_LIMIT_MULTIPLIER, _config.VERIFICATION_GAS_LIMIT_MULTIPLIER);
+
+        CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES =
+            _resolveValue(CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES, _config.CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES);
+        CALL_GAS_LIMIT_MULTIPLIER = _resolveValue(CALL_GAS_LIMIT_MULTIPLIER, _config.CALL_GAS_LIMIT_MULTIPLIER);
+
+        MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES,
+            _config.MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES
+        );
+        MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER =
+            _resolveValue(MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER, _config.MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER);
+
+        MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES =
+            _resolveValue(MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES, _config.MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES);
+        MAX_FEE_PER_GAS_MULTIPLIER = _resolveValue(MAX_FEE_PER_GAS_MULTIPLIER, _config.MAX_FEE_PER_GAS_MULTIPLIER);
+
+        INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
+            _config.INITCODE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES
+        );
+        INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES, _config.INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES
+        );
+
+        PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES, _config.PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES
+        );
+        PMD_LENGTH_REPRESENTATION_SIZE_BYTES =
+            _resolveValue(PMD_LENGTH_REPRESENTATION_SIZE_BYTES, _config.PMD_LENGTH_REPRESENTATION_SIZE_BYTES);
+
+        CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
+            _config.CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES
+        );
+        CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES =
+            _resolveValue(CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES, _config.CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES);
+
+        SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
+            _config.SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES
+        );
+        SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES = _resolveValue(
+            SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES, _config.SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES
+        );
+
+        BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES =
+            _resolveValue(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES, _config.BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES);
+    }
+
+    function _resolveValue(uint256 _defaultValue, uint256 _overrideValue) internal pure returns (uint256) {
+        if (_overrideValue == 0) {
+            return _defaultValue;
+        } else {
+            return _overrideValue;
+        }
     }
 
     /**
@@ -117,10 +189,7 @@ contract EP6Decompressor is IEP6Decompressor {
         returns (uint256 nonce, bytes calldata nextSlice)
     {
         uint192 key;
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(NONCE_REPRESENTATION_SIZE_BYTES, 8))
-            key := shr(bitsToDiscard, calldataload(_slice.offset))
-        }
+        key = uint192(_slice.read(NONCE_REPRESENTATION_SIZE_BYTES));
         nextSlice = _slice[NONCE_REPRESENTATION_SIZE_BYTES:];
         nonce = entryPointV6.getNonce(_sender, key) | (key << 64);
     }
@@ -135,10 +204,7 @@ contract EP6Decompressor is IEP6Decompressor {
         pure
         returns (uint256 preVerificationGas, bytes calldata nextSlice)
     {
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES, 8))
-            preVerificationGas := shr(bitsToDiscard, calldataload(_slice.offset))
-        }
+        preVerificationGas = _slice.read(PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES);
         nextSlice = _slice[PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES:];
     }
 
@@ -157,11 +223,8 @@ contract EP6Decompressor is IEP6Decompressor {
         pure
         returns (uint256 verificationGasLimit, bytes calldata nextSlice)
     {
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES, 8))
-            verificationGasLimit := shr(bitsToDiscard, calldataload(_slice.offset))
-            verificationGasLimit := mul(verificationGasLimit, VERIFICATION_GAS_LIMIT_MULTIPLIER)
-        }
+        verificationGasLimit =
+            _slice.read(VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES) * VERIFICATION_GAS_LIMIT_MULTIPLIER;
         nextSlice = _slice[VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES:];
     }
 
@@ -185,11 +248,7 @@ contract EP6Decompressor is IEP6Decompressor {
         pure
         returns (uint256 callGasLimit, bytes calldata nextSlice)
     {
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES, 8))
-            callGasLimit := shr(bitsToDiscard, calldataload(_slice.offset))
-            callGasLimit := mul(callGasLimit, CALL_GAS_LIMIT_MULTIPLIER)
-        }
+        callGasLimit = _slice.read(CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES) * CALL_GAS_LIMIT_MULTIPLIER;
         nextSlice = _slice[CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES:];
     }
 
@@ -209,11 +268,8 @@ contract EP6Decompressor is IEP6Decompressor {
         pure
         returns (uint256 maxPriorityFeePerGas, bytes calldata nextSlice)
     {
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES, 8))
-            maxPriorityFeePerGas := shr(bitsToDiscard, calldataload(_slice.offset))
-            maxPriorityFeePerGas := mul(maxPriorityFeePerGas, MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER)
-        }
+        maxPriorityFeePerGas =
+            _slice.read(MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES) * MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER;
         nextSlice = _slice[MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES:];
     }
 
@@ -237,11 +293,7 @@ contract EP6Decompressor is IEP6Decompressor {
         pure
         returns (uint256 maxFeePerGas, bytes calldata nextSlice)
     {
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES, 8))
-            maxFeePerGas := shr(bitsToDiscard, calldataload(_slice.offset))
-            maxFeePerGas := mul(maxFeePerGas, MAX_FEE_PER_GAS_MULTIPLIER)
-        }
+        maxFeePerGas = _slice.read(MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES) * MAX_FEE_PER_GAS_MULTIPLIER;
         nextSlice = _slice[MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES:];
     }
 
@@ -470,11 +522,7 @@ contract EP6Decompressor is IEP6Decompressor {
         bytes calldata next = _compressdOps;
 
         // Extract the bundle length
-        uint256 bundleLength;
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES, 8))
-            bundleLength := shr(bitsToDiscard, calldataload(next.offset))
-        }
+        uint256 bundleLength = next.read(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES);
         next = next[BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES:];
 
         // Re-Build the bundle

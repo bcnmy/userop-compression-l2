@@ -34,9 +34,10 @@ contract RageTradeCompresssionTest is BaseTest {
 
     function setUp() public override {
         super.setUp();
+        EP6Decompressor.EP6DecompressorConfiguration memory overrides;
 
         entryPointStub = new EntryPointStub();
-        epDecompressor = new EP6Decompressor(IEntryPoint(address(entryPointStub)));
+        epDecompressor = new EP6Decompressor(IEntryPoint(address(entryPointStub)), overrides);
         rageTradeSubmitDelayedOrderCalldataDecompressor = new RageTradeSubmitDelayedOrderCalldataDecompressor();
         batchedSessionRouterDecompressor = new BatchedSessionRouterDecompressor();
         biconomyVerifyingPaymasterDecompressor = new BiconomyVerifyingPaymasterDecompressor();

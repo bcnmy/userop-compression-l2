@@ -4,11 +4,14 @@ pragma solidity ^0.8.23;
 import {RegistryLib} from "./RegistryLib.sol";
 import {IDecompressor} from "../interfaces/IDecompressor.sol";
 import {CastLib} from "./CastLib.sol";
+import {CalldataReadLib} from "./CalldataReadLib.sol";
+
 import {console2} from "forge-std/console2.sol";
 
 library DecompressionLib {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
+    using CalldataReadLib for bytes;
 
     // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
@@ -32,22 +35,18 @@ library DecompressionLib {
         nextSlice = _slice;
 
         // Extract the decompressor id
-        bytes32 decompressorId;
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_decompressorIdSizeBytes, 8))
-            decompressorId := shr(bitsToDiscard, calldataload(nextSlice.offset))
-        }
+        uint256 decompressorId = nextSlice.read(_decompressorIdSizeBytes);
         nextSlice = nextSlice[_decompressorIdSizeBytes:];
 
-        if (decompressorId == bytes32(uint256(RESERVED_IDS.DO_NOT_DECOMPRESS))) {
+        if (decompressorId == uint256(RESERVED_IDS.DO_NOT_DECOMPRESS)) {
             (decompressedData, nextSlice) = handleDoNotDecompressCase(nextSlice, _arrayLenSizeBytes);
-        } else if (decompressorId == bytes32(uint256(RESERVED_IDS.REGISTER_DECOMPRESSOR_AND_DECOMPRESS))) {
+        } else if (decompressorId == uint256(RESERVED_IDS.REGISTER_DECOMPRESSOR_AND_DECOMPRESS)) {
             (decompressedData, nextSlice) = handleRegisterDecompressorAndDecompressCase(
                 nextSlice, _registry, _decompressorIdSizeBytes, _arrayLenSizeBytes
             );
-        } else if (uint256(decompressorId) >= RegistryLib.FIRST_ID) {
+        } else if (decompressorId >= RegistryLib.FIRST_ID) {
             (decompressedData, nextSlice) =
-                handleDecompressCase(nextSlice, _registry, uint256(decompressorId), _arrayLenSizeBytes);
+                handleDecompressCase(nextSlice, _registry, decompressorId, _arrayLenSizeBytes);
         } else {
             revert("compressionLib: invalid decompressor id");
         }
@@ -68,11 +67,7 @@ library DecompressionLib {
         nextSlice = _slice;
 
         // Extract the array length
-        uint256 arrayLen;
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
-            arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
-        }
+        uint256 arrayLen = nextSlice.read(_arrayLenSizeBytes);
         nextSlice = nextSlice[_arrayLenSizeBytes:];
 
         // Copy the array
@@ -97,18 +92,11 @@ library DecompressionLib {
         nextSlice = _slice;
 
         // Extract the decompressor address
-        address decompressorAddr;
-        assembly ("memory-safe") {
-            decompressorAddr := shr(96, calldataload(nextSlice.offset))
-        }
+        address decompressorAddr = address(uint160(nextSlice.read(20)));
         nextSlice = nextSlice[20:];
 
         // Extract the array length
-        uint256 arrayLen;
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
-            arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
-        }
+        uint256 arrayLen = nextSlice.read(_arrayLenSizeBytes);
         nextSlice = nextSlice[_arrayLenSizeBytes:];
 
         // Register the decompressor
@@ -149,11 +137,7 @@ library DecompressionLib {
         }
 
         // Extract the array length
-        uint256 arrayLen;
-        assembly ("memory-safe") {
-            let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
-            arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
-        }
+        uint256 arrayLen = nextSlice.read(_arrayLenSizeBytes);
         nextSlice = nextSlice[_arrayLenSizeBytes:];
 
         // Copy the array
