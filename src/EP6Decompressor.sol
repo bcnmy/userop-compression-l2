@@ -235,7 +235,7 @@ contract EP6Decompressor is IEP6Decompressor {
         if (_verificationGasLimit % VERIFICATION_GAS_LIMIT_MULTIPLIER == 0) {
             multiplier = _verificationGasLimit / VERIFICATION_GAS_LIMIT_MULTIPLIER;
         } else {
-            multiplier = (_verificationGasLimit / VERIFICATION_GAS_LIMIT_MULTIPLIER) + 1;
+            revert ValueNotAnExactMultipleOfMultiplier(_verificationGasLimit, VERIFICATION_GAS_LIMIT_MULTIPLIER);
         }
         return multiplier.toBytesNPacked(VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES);
     }
@@ -255,7 +255,7 @@ contract EP6Decompressor is IEP6Decompressor {
         if (_callGasLimit % CALL_GAS_LIMIT_MULTIPLIER == 0) {
             multiplier = _callGasLimit / CALL_GAS_LIMIT_MULTIPLIER;
         } else {
-            multiplier = (_callGasLimit / CALL_GAS_LIMIT_MULTIPLIER) + 1;
+            revert ValueNotAnExactMultipleOfMultiplier(_callGasLimit, CALL_GAS_LIMIT_MULTIPLIER);
         }
         return multiplier.toBytesNPacked(CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES);
     }
@@ -280,7 +280,7 @@ contract EP6Decompressor is IEP6Decompressor {
         if (_maxPriorityFeePerGas % MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER == 0) {
             multiplier = _maxPriorityFeePerGas / MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER;
         } else {
-            multiplier = (_maxPriorityFeePerGas / MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER) + 1;
+            revert ValueNotAnExactMultipleOfMultiplier(_maxPriorityFeePerGas, MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER);
         }
         return multiplier.toBytesNPacked(MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES);
     }
@@ -300,7 +300,7 @@ contract EP6Decompressor is IEP6Decompressor {
         if (_maxFeePerGas % MAX_FEE_PER_GAS_MULTIPLIER == 0) {
             multiplier = _maxFeePerGas / MAX_FEE_PER_GAS_MULTIPLIER;
         } else {
-            multiplier = (_maxFeePerGas / MAX_FEE_PER_GAS_MULTIPLIER) + 1;
+            revert ValueNotAnExactMultipleOfMultiplier(_maxFeePerGas, MAX_FEE_PER_GAS_MULTIPLIER);
         }
         return multiplier.toBytesNPacked(MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES);
     }

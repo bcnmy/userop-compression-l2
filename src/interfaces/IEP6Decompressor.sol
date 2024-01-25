@@ -49,6 +49,7 @@ interface IEP6Decompressor {
     error SimulateHandleOpDidNotRevert();
     error SimulateValidationDidNotRevert();
     error ParameterLengthMismatch();
+    error ValueNotAnExactMultipleOfMultiplier(uint256 value, uint256 multiplier);
 
     struct EP6DecompressorConfiguration {
         uint256 SENDER_REPRESENTATION_SIZE_BYTES;

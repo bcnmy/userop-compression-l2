@@ -50,7 +50,7 @@ contract RageTradeCompresssionTest is BaseTest {
         return (originalOps, originalBeneficiary);
     }
 
-    function _prepareForPaymasterAndDataCompression(UserOperation memory op) internal {
+    function _registerPmdDecompressor(UserOperation memory op) internal {
         bytes memory pmdWithoutPaymasterAddress = abi.encodePacked(op.paymasterAndData);
         assembly ("memory-safe") {
             let length := mload(pmdWithoutPaymasterAddress)
@@ -65,7 +65,7 @@ contract RageTradeCompresssionTest is BaseTest {
         biconomyVerifyingPaymasterDecompressor.paymasterIdRegistry().register(paymasterId);
     }
 
-    function _prepareForSignatureCompression(UserOperation memory op) internal {
+    function _registerSigDecompressor(UserOperation memory op) internal {
         (bytes memory moduleSignature,) = abi.decode(op.signature, (bytes, address));
         (, SessionData[] memory sessionDatas,) = abi.decode(moduleSignature, (address, SessionData[], bytes));
 
@@ -81,8 +81,20 @@ contract RageTradeCompresssionTest is BaseTest {
         (UserOperation[] memory ops, address originalBeneficiary) = this.decodeHandleOpsData(originalHandleOpsCalldata);
 
         UserOperation memory originalOp = ops[0];
-        _prepareForPaymasterAndDataCompression(originalOp);
-        _prepareForSignatureCompression(originalOp);
+        _registerPmdDecompressor(originalOp);
+        _registerSigDecompressor(originalOp);
+
+        // Adjust cgl,vgl,mfpg,mpfpg to be nearest multiple of corrspoding multipliers
+        originalOp.callGasLimit = (originalOp.callGasLimit / epDecompressor.CALL_GAS_LIMIT_MULTIPLIER())
+            * epDecompressor.CALL_GAS_LIMIT_MULTIPLIER();
+        originalOp.verificationGasLimit = (
+            originalOp.verificationGasLimit / epDecompressor.VERIFICATION_GAS_LIMIT_MULTIPLIER()
+        ) * epDecompressor.VERIFICATION_GAS_LIMIT_MULTIPLIER();
+        originalOp.maxFeePerGas = (originalOp.maxFeePerGas / epDecompressor.MAX_FEE_PER_GAS_MULTIPLIER())
+            * epDecompressor.MAX_FEE_PER_GAS_MULTIPLIER();
+        originalOp.maxPriorityFeePerGas = (
+            originalOp.maxPriorityFeePerGas / epDecompressor.MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER()
+        ) * epDecompressor.MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER();
 
         IEP6Decompressor.CompressionOptions memory options = IEP6Decompressor.CompressionOptions({
             paymasterAndDataDecompressor: biconomyVerifyingPaymasterDecompressor,
@@ -134,8 +146,20 @@ contract RageTradeCompresssionTest is BaseTest {
         (UserOperation[] memory ops, address originalBeneficiary) = this.decodeHandleOpsData(originalHandleOpsCalldata);
 
         UserOperation memory originalOp = ops[0];
-        _prepareForPaymasterAndDataCompression(originalOp);
-        _prepareForSignatureCompression(originalOp);
+        _registerPmdDecompressor(originalOp);
+        _registerSigDecompressor(originalOp);
+
+        // Adjust cgl,vgl,mfpg,mpfpg to be nearest multiple of corrspoding multipliers
+        originalOp.callGasLimit = (originalOp.callGasLimit / epDecompressor.CALL_GAS_LIMIT_MULTIPLIER())
+            * epDecompressor.CALL_GAS_LIMIT_MULTIPLIER();
+        originalOp.verificationGasLimit = (
+            originalOp.verificationGasLimit / epDecompressor.VERIFICATION_GAS_LIMIT_MULTIPLIER()
+        ) * epDecompressor.VERIFICATION_GAS_LIMIT_MULTIPLIER();
+        originalOp.maxFeePerGas = (originalOp.maxFeePerGas / epDecompressor.MAX_FEE_PER_GAS_MULTIPLIER())
+            * epDecompressor.MAX_FEE_PER_GAS_MULTIPLIER();
+        originalOp.maxPriorityFeePerGas = (
+            originalOp.maxPriorityFeePerGas / epDecompressor.MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER()
+        ) * epDecompressor.MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER();
 
         IEP6Decompressor.CompressionOptions memory options = IEP6Decompressor.CompressionOptions({
             paymasterAndDataDecompressor: biconomyVerifyingPaymasterDecompressor,
