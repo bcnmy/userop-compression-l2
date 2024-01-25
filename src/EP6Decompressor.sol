@@ -98,7 +98,7 @@ contract EP6Decompressor is IEP6Decompressor {
     }
 
     /**
-     * decompression and Defalation
+     * decompression and compression
      */
 
     // sender
@@ -120,10 +120,8 @@ contract EP6Decompressor is IEP6Decompressor {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(NONCE_REPRESENTATION_SIZE_BYTES, 8))
             key := shr(bitsToDiscard, calldataload(_slice.offset))
-
-            nextSlice.offset := add(_slice.offset, NONCE_REPRESENTATION_SIZE_BYTES)
-            nextSlice.length := sub(_slice.length, NONCE_REPRESENTATION_SIZE_BYTES)
         }
+        nextSlice = _slice[NONCE_REPRESENTATION_SIZE_BYTES:];
         nonce = entryPointV6.getNonce(_sender, key) | (key << 64);
     }
 
@@ -140,10 +138,8 @@ contract EP6Decompressor is IEP6Decompressor {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES, 8))
             preVerificationGas := shr(bitsToDiscard, calldataload(_slice.offset))
-
-            nextSlice.offset := add(_slice.offset, PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES)
-            nextSlice.length := sub(_slice.length, PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES)
         }
+        nextSlice = _slice[PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES:];
     }
 
     function _compressPreVerificationGas(uint256 _preVerificationGas)
@@ -165,10 +161,8 @@ contract EP6Decompressor is IEP6Decompressor {
             let bitsToDiscard := sub(256, mul(VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES, 8))
             verificationGasLimit := shr(bitsToDiscard, calldataload(_slice.offset))
             verificationGasLimit := mul(verificationGasLimit, VERIFICATION_GAS_LIMIT_MULTIPLIER)
-
-            nextSlice.offset := add(_slice.offset, VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES)
-            nextSlice.length := sub(_slice.length, VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES)
         }
+        nextSlice = _slice[VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES:];
     }
 
     function _compressVerificationGasLimit(uint256 _verificationGasLimit)
@@ -195,10 +189,8 @@ contract EP6Decompressor is IEP6Decompressor {
             let bitsToDiscard := sub(256, mul(CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES, 8))
             callGasLimit := shr(bitsToDiscard, calldataload(_slice.offset))
             callGasLimit := mul(callGasLimit, CALL_GAS_LIMIT_MULTIPLIER)
-
-            nextSlice.offset := add(_slice.offset, CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES)
-            nextSlice.length := sub(_slice.length, CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES)
         }
+        nextSlice = _slice[CALL_GAS_LIMIT_REPRESENTATION_SIZE_BYTES:];
     }
 
     function _compressCallGasLimit(uint256 _callGasLimit) internal pure returns (bytes memory compressedCallGasLimit) {
@@ -221,10 +213,8 @@ contract EP6Decompressor is IEP6Decompressor {
             let bitsToDiscard := sub(256, mul(MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES, 8))
             maxPriorityFeePerGas := shr(bitsToDiscard, calldataload(_slice.offset))
             maxPriorityFeePerGas := mul(maxPriorityFeePerGas, MAX_PRIORITY_FEE_PER_GAS_MULTIPLIER)
-
-            nextSlice.offset := add(_slice.offset, MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES)
-            nextSlice.length := sub(_slice.length, MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES)
         }
+        nextSlice = _slice[MAX_PRIORITY_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES:];
     }
 
     function _compressMaxPriorityFeePerGas(uint256 _maxPriorityFeePerGas)
@@ -251,10 +241,8 @@ contract EP6Decompressor is IEP6Decompressor {
             let bitsToDiscard := sub(256, mul(MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES, 8))
             maxFeePerGas := shr(bitsToDiscard, calldataload(_slice.offset))
             maxFeePerGas := mul(maxFeePerGas, MAX_FEE_PER_GAS_MULTIPLIER)
-
-            nextSlice.offset := add(_slice.offset, MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES)
-            nextSlice.length := sub(_slice.length, MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES)
         }
+        nextSlice = _slice[MAX_FEE_PER_GAS_REPRESENTATION_SIZE_BYTES:];
     }
 
     function _compressMaxFeePerGas(uint256 _maxFeePerGas) internal pure returns (bytes memory compressedMaxFeePerGas) {
@@ -486,10 +474,8 @@ contract EP6Decompressor is IEP6Decompressor {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES, 8))
             bundleLength := shr(bitsToDiscard, calldataload(next.offset))
-
-            next.offset := add(next.offset, BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES)
-            next.length := sub(next.length, BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES)
         }
+        next = next[BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES:];
 
         // Re-Build the bundle
         ops = new UserOperation[](bundleLength);
@@ -526,7 +512,10 @@ contract EP6Decompressor is IEP6Decompressor {
         override
         returns (bytes memory compressedOps)
     {
-        // todo: length validation
+        if (_ops.length != _options.length) {
+            revert ParameterLengthMismatch();
+        }
+
         compressedOps = abi.encodePacked(uint256(_ops.length).toBytesNPacked(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES));
         for (uint256 i = 0; i < _ops.length; ++i) {
             compressedOps = abi.encodePacked(compressedOps, _compressOp(_ops[i], _options[i]));

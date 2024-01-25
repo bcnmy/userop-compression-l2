@@ -48,6 +48,7 @@ interface IEP6Decompressor {
 
     error SimulateHandleOpDidNotRevert();
     error SimulateValidationDidNotRevert();
+    error ParameterLengthMismatch();
 
     /**
      * @dev Given a sender address, return the sender id if registered.

@@ -36,10 +36,8 @@ library DecompressionLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_decompressorIdSizeBytes, 8))
             decompressorId := shr(bitsToDiscard, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, _decompressorIdSizeBytes)
-            nextSlice.length := sub(nextSlice.length, _decompressorIdSizeBytes)
         }
+        nextSlice = nextSlice[_decompressorIdSizeBytes:];
 
         if (decompressorId == bytes32(uint256(RESERVED_IDS.DO_NOT_DECOMPRESS))) {
             (decompressedData, nextSlice) = handleDoNotDecompressCase(nextSlice, _arrayLenSizeBytes);
@@ -74,17 +72,12 @@ library DecompressionLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
             arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, _arrayLenSizeBytes)
-            nextSlice.length := sub(nextSlice.length, _arrayLenSizeBytes)
         }
+        nextSlice = nextSlice[_arrayLenSizeBytes:];
 
         // Copy the array
         decompressedData = nextSlice[:arrayLen];
-        assembly ("memory-safe") {
-            nextSlice.offset := add(nextSlice.offset, arrayLen)
-            nextSlice.length := sub(nextSlice.length, arrayLen)
-        }
+        nextSlice = nextSlice[arrayLen:];
     }
 
     function handleRegisterDecompressorAndDecompressCase(
@@ -107,30 +100,23 @@ library DecompressionLib {
         address decompressorAddr;
         assembly ("memory-safe") {
             decompressorAddr := shr(96, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, 20)
-            nextSlice.length := sub(nextSlice.length, 20)
         }
+        nextSlice = nextSlice[20:];
 
         // Extract the array length
         uint256 arrayLen;
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
             arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, _arrayLenSizeBytes)
-            nextSlice.length := sub(nextSlice.length, _arrayLenSizeBytes)
         }
+        nextSlice = nextSlice[_arrayLenSizeBytes:];
 
         // Register the decompressor
         _registry.checkAndRegister(decompressorAddr, _decompressorIdSizeBytes);
 
         // Copy the array
         bytes memory compressedData = nextSlice[:arrayLen];
-        assembly ("memory-safe") {
-            nextSlice.offset := add(nextSlice.offset, arrayLen)
-            nextSlice.length := sub(nextSlice.length, arrayLen)
-        }
+        nextSlice = nextSlice[arrayLen:];
 
         // Decompress the data
         try IDecompressor(decompressorAddr).decompress(compressedData) returns (bytes memory _decompressdData) {
@@ -167,17 +153,12 @@ library DecompressionLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_arrayLenSizeBytes, 8))
             arrayLen := shr(bitsToDiscard, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, _arrayLenSizeBytes)
-            nextSlice.length := sub(nextSlice.length, _arrayLenSizeBytes)
         }
+        nextSlice = nextSlice[_arrayLenSizeBytes:];
 
         // Copy the array
         bytes memory compressedData = nextSlice[:arrayLen];
-        assembly ("memory-safe") {
-            nextSlice.offset := add(nextSlice.offset, arrayLen)
-            nextSlice.length := sub(nextSlice.length, arrayLen)
-        }
+        nextSlice = nextSlice[arrayLen:];
 
         // Decompress the data
         try decompressor.decompress(compressedData) returns (bytes memory _decompressdData) {

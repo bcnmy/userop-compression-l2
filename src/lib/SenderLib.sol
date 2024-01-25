@@ -34,10 +34,8 @@ library SenderLib {
         assembly ("memory-safe") {
             let bitsToDiscard := sub(256, mul(_senderRepresentationSizeBytes, 8))
             senderId := shr(bitsToDiscard, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, _senderRepresentationSizeBytes)
-            nextSlice.length := sub(nextSlice.length, _senderRepresentationSizeBytes)
         }
+        nextSlice = nextSlice[_senderRepresentationSizeBytes:];
 
         if (senderId == uint256(RESERVED_IDS.REGISTER_SENDER)) {
             (sender, nextSlice) = handleRegisterSenderCase(nextSlice, _registry, _senderRepresentationSizeBytes);
@@ -64,10 +62,8 @@ library SenderLib {
         // Extract the sender address
         assembly ("memory-safe") {
             sender := shr(96, calldataload(nextSlice.offset))
-
-            nextSlice.offset := add(nextSlice.offset, 20)
-            nextSlice.length := sub(nextSlice.length, 20)
         }
+        nextSlice = nextSlice[20:];
 
         // Register the sender
         _registry.checkAndRegister(sender, _senderIdSizeBytes);
