@@ -26,7 +26,7 @@ contract EP6Decompressor is IEP6Decompressor {
     // userOp.nonce
     // We can fetch the next valid for the given key based on the SA address and the key itself.
     // Therefore we do not need to pass the 64 bit 'value' in the calldata.
-    uint256 public immutable NONCE_REPRESENTATION_SIZE_BYTES = 24;
+    uint256 public constant NONCE_REPRESENTATION_SIZE_BYTES = 24;
 
     // userOp.preVerificationGas
     // By definition, the pre-verification gas cannot be computed on-chain.
@@ -98,9 +98,6 @@ contract EP6Decompressor is IEP6Decompressor {
         SENDER_REPRESENTATION_SIZE_BYTES =
             _resolveValue(SENDER_REPRESENTATION_SIZE_BYTES, _config.SENDER_REPRESENTATION_SIZE_BYTES);
 
-        NONCE_REPRESENTATION_SIZE_BYTES =
-            _resolveValue(NONCE_REPRESENTATION_SIZE_BYTES, _config.NONCE_REPRESENTATION_SIZE_BYTES);
-
         PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES = _resolveValue(
             PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES, _config.PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES
         );
@@ -134,11 +131,19 @@ contract EP6Decompressor is IEP6Decompressor {
             INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES, _config.INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES
         );
 
+        if (INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES < 2 || INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES > 31) {
+            revert InvalidRegistryIdRepresentationSizeBytes(INITICODE_LENGTH_REPRESENTATION_SIZE_BYTES);
+        }
+
         PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = _resolveValue(
             PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES, _config.PMD_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES
         );
         PMD_LENGTH_REPRESENTATION_SIZE_BYTES =
             _resolveValue(PMD_LENGTH_REPRESENTATION_SIZE_BYTES, _config.PMD_LENGTH_REPRESENTATION_SIZE_BYTES);
+
+        if (PMD_LENGTH_REPRESENTATION_SIZE_BYTES < 2 || PMD_LENGTH_REPRESENTATION_SIZE_BYTES > 31) {
+            revert InvalidRegistryIdRepresentationSizeBytes(PMD_LENGTH_REPRESENTATION_SIZE_BYTES);
+        }
 
         CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = _resolveValue(
             CALLDATA_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
@@ -147,6 +152,10 @@ contract EP6Decompressor is IEP6Decompressor {
         CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES =
             _resolveValue(CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES, _config.CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES);
 
+        if (CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES < 2 || CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES > 31) {
+            revert InvalidRegistryIdRepresentationSizeBytes(CALLDATA_LENGTH_REPRESENTATION_SIZE_BYTES);
+        }
+
         SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES = _resolveValue(
             SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES,
             _config.SIGNATURE_DECOMPRESSOR_ID_REPRESENTATION_SIZE_BYTES
@@ -154,6 +163,10 @@ contract EP6Decompressor is IEP6Decompressor {
         SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES = _resolveValue(
             SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES, _config.SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES
         );
+
+        if (SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES < 2 || SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES > 31) {
+            revert InvalidRegistryIdRepresentationSizeBytes(SIGNATURE_LENGTH_REPRESENTATION_SIZE_BYTES);
+        }
 
         BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES =
             _resolveValue(BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES, _config.BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES);
@@ -186,8 +199,7 @@ contract EP6Decompressor is IEP6Decompressor {
         view
         returns (uint256 nonce, bytes calldata nextSlice)
     {
-        uint192 key;
-        key = uint192(_slice.read(NONCE_REPRESENTATION_SIZE_BYTES));
+        uint192 key = uint192(_slice.read(NONCE_REPRESENTATION_SIZE_BYTES));
         nextSlice = _slice[NONCE_REPRESENTATION_SIZE_BYTES:];
         nonce = entryPointV6.getNonce(_sender, key) | (key << 64);
     }

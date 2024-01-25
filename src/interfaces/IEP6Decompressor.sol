@@ -50,10 +50,10 @@ interface IEP6Decompressor {
     error SimulateValidationDidNotRevert();
     error ParameterLengthMismatch();
     error ValueNotAnExactMultipleOfMultiplier(uint256 value, uint256 multiplier);
+    error InvalidRegistryIdRepresentationSizeBytes(uint256 representationSizeBytes);
 
     struct EP6DecompressorConfiguration {
         uint256 SENDER_REPRESENTATION_SIZE_BYTES;
-        uint256 NONCE_REPRESENTATION_SIZE_BYTES;
         uint256 PRE_VERIFICATION_GAS_REPRESENTATION_SIZE_BYTES;
         uint256 VERIFICATION_GAS_LIMIT_REPRESENTATION_SIZE_BYTES;
         uint256 VERIFICATION_GAS_LIMIT_MULTIPLIER;

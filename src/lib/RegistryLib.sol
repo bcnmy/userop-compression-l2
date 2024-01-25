@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {console2} from "forge-std/console2.sol";
-
 library RegistryLib {
     uint256 constant FIRST_ID = 0x0100;
 
     event Registered(uint256 indexed id, address indexed addr, uint256 indexed registryId);
+    event AlreadyRegistered(uint256 indexed id, address indexed addr, uint256 indexed registryId);
 
     error IdAlreadyRegistered(uint256 id);
     error ZeroAddressCannotBeRegistered();
     error NoMoreSpaceForNewDecompressors();
     error IdNotRegistered(uint256 id);
+    error InvalidKeySizeBytes(uint256 keySizeBytes);
 
     struct RegistryStore {
         mapping(uint256 => address) idToAddr;
@@ -27,7 +27,11 @@ library RegistryLib {
         internal
         returns (uint256 id)
     {
-        if (2 ** (8 * _keySizeBytes) == _self.nextId) {
+        if (_keySizeBytes < 2 || _keySizeBytes > 31) {
+            revert InvalidKeySizeBytes(_keySizeBytes);
+        }
+
+        if (1 << (8 * _keySizeBytes) == _self.nextId) {
             revert NoMoreSpaceForNewDecompressors();
         }
 
@@ -35,8 +39,9 @@ library RegistryLib {
             revert ZeroAddressCannotBeRegistered();
         }
 
-        if (_self.idToAddr[_self.nextId] != address(0)) {
-            revert IdAlreadyRegistered(_self.nextId);
+        if (_self.addrToId[_addr] != 0) {
+            emit AlreadyRegistered(_self.addrToId[_addr], _addr, registryId(_self));
+            return _self.addrToId[_addr];
         }
 
         id = _self.nextId++;
