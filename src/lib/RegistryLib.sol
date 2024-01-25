@@ -8,6 +8,11 @@ library RegistryLib {
 
     event Registered(uint256 indexed id, address indexed addr, uint256 indexed registryId);
 
+    error IdAlreadyRegistered(uint256 id);
+    error ZeroAddressCannotBeRegistered();
+    error NoMoreSpaceForNewDecompressors();
+    error IdNotRegistered(uint256 id);
+
     struct RegistryStore {
         mapping(uint256 => address) idToAddr;
         mapping(address => uint256) addrToId;
@@ -23,15 +28,15 @@ library RegistryLib {
         returns (uint256 id)
     {
         if (2 ** (8 * _keySizeBytes) == _self.nextId) {
-            revert("Registry: no more space for new decompressors");
+            revert NoMoreSpaceForNewDecompressors();
         }
 
         if (_addr == address(0)) {
-            revert("Registry: cannot register zero address");
+            revert ZeroAddressCannotBeRegistered();
         }
 
         if (_self.idToAddr[_self.nextId] != address(0)) {
-            revert("Registry: id already registered");
+            revert IdAlreadyRegistered(_self.nextId);
         }
 
         id = _self.nextId++;
@@ -43,7 +48,10 @@ library RegistryLib {
 
     function checkAndGet(RegistryStore storage _self, uint256 _id) internal view returns (address addr) {
         addr = _self.idToAddr[_id];
-        require(addr != address(0), "Registry: id not registered");
+
+        if (addr == address(0)) {
+            revert IdNotRegistered(_id);
+        }
     }
 
     function registryId(RegistryStore storage _self) internal pure returns (uint256 id) {

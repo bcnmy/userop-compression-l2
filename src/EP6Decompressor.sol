@@ -13,8 +13,6 @@ import {CalldataReadLib} from "./lib/CalldataReadLib.sol";
 
 import {console2} from "forge-std/console2.sol";
 
-// TODO: Custom Errors
-
 contract EP6Decompressor is IEP6Decompressor {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;
@@ -75,7 +73,7 @@ contract EP6Decompressor is IEP6Decompressor {
 
     // Bundling
     // Support a max bundle length of 256
-    uint256 public BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES = 1;
+    uint256 public immutable BUNDLE_LENGTH_REPRESENTATION_SIZE_BYTES = 1;
 
     IEntryPoint public immutable entryPointV6;
 

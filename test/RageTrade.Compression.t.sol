@@ -47,13 +47,10 @@ contract RageTradeCompresssionTest is BaseTest {
         (UserOperation[] memory originalOps, address originalBeneficiary) =
             abi.decode(data[4:], (UserOperation[], address));
 
-        console2.log("Original Ops Count:", originalOps.length);
-        console2.log("Original Beneficiary:", originalBeneficiary);
-
         return (originalOps, originalBeneficiary);
     }
 
-    function _prepareForPaymasterAndDataCompression(UserOperation memory op) internal returns (bytes memory pmd) {
+    function _prepareForPaymasterAndDataCompression(UserOperation memory op) internal {
         bytes memory pmdWithoutPaymasterAddress = abi.encodePacked(op.paymasterAndData);
         assembly ("memory-safe") {
             let length := mload(pmdWithoutPaymasterAddress)
@@ -68,10 +65,9 @@ contract RageTradeCompresssionTest is BaseTest {
         biconomyVerifyingPaymasterDecompressor.paymasterIdRegistry().register(paymasterId);
     }
 
-    function _prepareForSignatureCompression(UserOperation memory op) internal returns (bytes memory sig) {
+    function _prepareForSignatureCompression(UserOperation memory op) internal {
         (bytes memory moduleSignature,) = abi.decode(op.signature, (bytes, address));
-        (, SessionData[] memory sessionDatas, bytes memory sessionKeySignature) =
-            abi.decode(moduleSignature, (address, SessionData[], bytes));
+        (, SessionData[] memory sessionDatas,) = abi.decode(moduleSignature, (address, SessionData[], bytes));
 
         for (uint256 i = 0; i < sessionDatas.length; i++) {
             SessionData memory sessionData = sessionDatas[i];
@@ -213,7 +209,7 @@ contract EntryPointStub {
         _userOp = ops[0];
     }
 
-    function getNonce(address _acc, uint192 _key) external view returns (uint256) {
+    function getNonce(address, uint192) external pure returns (uint256) {
         return 0;
     }
 

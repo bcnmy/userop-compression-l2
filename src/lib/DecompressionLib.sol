@@ -13,6 +13,11 @@ library DecompressionLib {
     using CastLib for uint256;
     using CalldataReadLib for bytes;
 
+    error InvalidDecompressorId(uint256 decompressorId);
+    error DecompressorFailedToDecompressWithReason(IDecompressor decompressor, bytes reason);
+    error DecompressorFailedToCompressWithReason(IDecompressor decompressor, bytes reason);
+    error DecompressorNotRegistered(IDecompressor decompressor);
+
     // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
         DO_NOT_DECOMPRESS, // 0x0000
@@ -48,7 +53,7 @@ library DecompressionLib {
             (decompressedData, nextSlice) =
                 handleDecompressCase(nextSlice, _registry, decompressorId, _arrayLenSizeBytes);
         } else {
-            revert("compressionLib: invalid decompressor id");
+            revert InvalidDecompressorId(decompressorId);
         }
     }
 
@@ -110,9 +115,9 @@ library DecompressionLib {
         try IDecompressor(decompressorAddr).decompress(compressedData) returns (bytes memory _decompressdData) {
             decompressedData = _decompressdData;
         } catch Error(string memory reason) {
-            revert(string.concat("compressionLib: decompressor failed to decompress: ", reason));
-        } catch {
-            revert("compressionLib: decompressor failed to decompress");
+            revert DecompressorFailedToDecompressWithReason(IDecompressor(decompressorAddr), abi.encode(reason));
+        } catch (bytes memory reason) {
+            revert DecompressorFailedToDecompressWithReason(IDecompressor(decompressorAddr), reason);
         }
     }
 
@@ -133,7 +138,7 @@ library DecompressionLib {
 
         IDecompressor decompressor = IDecompressor(_registry.checkAndGet(_decompressorId));
         if (address(decompressor) == address(0)) {
-            revert("compressionLib: decompressor not registered");
+            revert DecompressorNotRegistered(decompressor);
         }
 
         // Extract the array length
@@ -148,9 +153,9 @@ library DecompressionLib {
         try decompressor.decompress(compressedData) returns (bytes memory _decompressdData) {
             decompressedData = _decompressdData;
         } catch Error(string memory reason) {
-            revert(string.concat("compressionLib: decompressor failed to decompress: ", reason));
-        } catch {
-            revert("compressionLib: decompressor failed to decompress");
+            revert DecompressorFailedToDecompressWithReason(decompressor, abi.encode(reason));
+        } catch (bytes memory reason) {
+            revert DecompressorFailedToDecompressWithReason(decompressor, reason);
         }
     }
 
@@ -170,9 +175,17 @@ library DecompressionLib {
             );
         }
 
-        bytes memory compressedData = _decompressor.compress(_data);
+        bytes memory compressedData;
+        try _decompressor.compress(_data) returns (bytes memory _compressedData) {
+            compressedData = _compressedData;
+        } catch Error(string memory reason) {
+            revert DecompressorFailedToCompressWithReason(_decompressor, abi.encode(reason));
+        } catch (bytes memory reason) {
+            revert DecompressorFailedToCompressWithReason(_decompressor, reason);
+        }
 
         uint256 decompressorId = _registry.addrToId[address(_decompressor)];
+
         // Register and decompress
         if (decompressorId == 0) {
             return abi.encodePacked(

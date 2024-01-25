@@ -2,6 +2,8 @@
 pragma solidity ^0.8.23;
 
 library CastLib {
+    error CastLibInvalidSize(uint256 size);
+
     // To be used strictly off-chain
     function toBytesNPacked(uint256 _x, uint256 _n) internal pure returns (bytes memory b) {
         if (_n == 1) {
@@ -69,7 +71,7 @@ library CastLib {
         } else if (_n == 32) {
             return abi.encodePacked(uint256(_x));
         } else {
-            revert("CastLib: invalid n");
+            revert CastLibInvalidSize(_n);
         }
     }
 }

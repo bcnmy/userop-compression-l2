@@ -12,6 +12,8 @@ library SenderLib {
     using CastLib for uint256;
     using CalldataReadLib for bytes;
 
+    error InvalidSenderId(uint256 senderId);
+
     // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
         REGISTER_SENDER // 0x0000
@@ -40,7 +42,7 @@ library SenderLib {
         } else if (senderId >= RegistryLib.FIRST_ID) {
             sender = handleCompressionCase(senderId, _registry);
         } else {
-            revert("compressionLib: invalid sender id");
+            revert InvalidSenderId(senderId);
         }
     }
 
