@@ -5,8 +5,6 @@ import {RegistryLib} from "./RegistryLib.sol";
 import {CastLib} from "./CastLib.sol";
 import {CalldataReadLib} from "./CalldataReadLib.sol";
 
-import {console2} from "forge-std/console2.sol";
-
 library SenderLib {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;

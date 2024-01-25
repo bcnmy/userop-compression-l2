@@ -11,8 +11,6 @@ import {SenderLib} from "./lib/SenderLib.sol";
 import {CastLib} from "./lib/CastLib.sol";
 import {CalldataReadLib} from "./lib/CalldataReadLib.sol";
 
-import {console2} from "forge-std/console2.sol";
-
 contract EP6Decompressor is IEP6Decompressor {
     using RegistryLib for RegistryLib.RegistryStore;
     using CastLib for uint256;

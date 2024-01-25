@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {BaseTest} from "./BaseTest.sol";
+import {BaseTest} from "../BaseTest.sol";
 import {CastLib} from "src/lib/CastLib.sol";
 
 contract CalldataReadLibTest is BaseTest {

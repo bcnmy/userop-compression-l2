@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {BaseTest} from "./BaseTest.sol";
+import {BaseTest} from "../BaseTest.sol";
 import {RegistryLib} from "src/lib/RegistryLib.sol";
 
 contract RegistryLibTest is BaseTest {
