@@ -1,6 +1,4 @@
-# PoC for Calldata Compression on Layer 2 - Eg: Using Rage Trade's Transactions
-![image](https://github.com/bcnmy/l2-calldata-compression-poc/assets/16562513/8a833d40-bd66-4e10-bb7a-8376fdca777d)
-
+# User Operation Compression on Layer 2 
 
 In Layer 2 (L2) blockchain ecosystems, optimizing calldata is more than just compression—it's about smart data reduction. Here's how we do it:
 
@@ -22,7 +20,7 @@ In the provided Solidity code:
 
 1. **Sender Address Compression**: 
     - Technique: Reduced Precision Representation.
-    - Implementation: Compresses the sender address using only 3 bytes.
+    - Implementation: Compresses the sender address using only 5 bytes.
 	
 2. **Nonce Compression**:    
     - Technique: Reduced Precision Representation.
@@ -30,7 +28,7 @@ In the provided Solidity code:
 	
 3. **Pre-Verification Gas Compression**:    
     - Technique: Reduced Precision Representation.
-    - Implementation: Bounds the pre-verification gas to 26 bytes.
+    - Implementation: Bounds the pre-verification gas to 5 bytes.
 	
 4. **Verification Gas Limit Compression**:    
     - Technique: Reduced Precision Representation with Approximation.
@@ -129,7 +127,3 @@ Theoretical Gas Cost: 6924 **(54% reduction)**
 Mainnet Cost: $0.18 **(47% reduction)**. https://optimistic.etherscan.io/tx/0xbd0429aea338f8da2cb44adf6b105cb76541d2098a52981d8796a5b623a76b34
 
 The results indicate that the reduction in calldata with this algorithm translates very well to actual real life results.
-
-### Notes
-1. I can do a much better job of compressing the signature, however for the PoC purposes I've chosen to not complicate it too much. Notice that op.signature is quite large, and this is due to the fact that SessionKeys + BatchedSessionRouter is being used. Once SessionKeysV2 goes live, this cost will go down significantly since much of these techniques are natively incorporated into it's design given the heavy focus on callData reduction.
-2. The solution is feasible if we encourage developers to identify patterns in their calldata structures and write appropriate Decompressors to handle it. This opens us a new paradigm when it comes to Gas Optimisation and opens a path forward to another ERC for standardising Decompressors, Decompressor Registries and Onchain Address Dictionaries.
