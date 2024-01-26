@@ -143,7 +143,6 @@ contract DecompressionLibTest is BaseTest {
 
         // encoded even number
         uint256 number = uint256(bytes32(abi.encodePacked(keccak256("testCompression")))) / 2 * 2;
-        uint256 numberCompressed = number / 2;
 
         bytes memory data = abi.encode(number);
 
@@ -168,7 +167,7 @@ contract DecompressionLibTest is BaseTest {
         IDecompressor _decompressor,
         uint256 _decompressorIdSizeBytes,
         uint256 _lengthSizeBytes
-    ) external view returns (bytes memory) {
+    ) external returns (bytes memory) {
         return DecompressionLib.compress(_data, registry, _decompressor, _decompressorIdSizeBytes, _lengthSizeBytes);
     }
 

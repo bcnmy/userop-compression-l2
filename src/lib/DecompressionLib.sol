@@ -159,7 +159,7 @@ library DecompressionLib {
         IDecompressor _decompressor,
         uint256 _decompressorIdSizeBytes,
         uint256 _lengthSizeBytes
-    ) internal view returns (bytes memory) {
+    ) internal returns (bytes memory) {
         // Do not decompress
         if (address(_decompressor) == address(0)) {
             return abi.encodePacked(

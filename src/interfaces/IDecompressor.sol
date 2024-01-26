@@ -19,5 +19,5 @@ interface IDecompressor {
      * @param _data the decompressed data
      * @return compressedData the compressed data
      */
-    function compress(bytes calldata _data) external view returns (bytes memory compressedData);
+    function compress(bytes calldata _data) external returns (bytes memory compressedData);
 }

@@ -199,7 +199,7 @@ contract EP6Decompressor is IEP6Decompressor {
     {
         uint192 key = uint192(_slice.read(NONCE_REPRESENTATION_SIZE_BYTES));
         nextSlice = _slice[NONCE_REPRESENTATION_SIZE_BYTES:];
-        nonce = entryPointV6.getNonce(_sender, key) | (key << 64);
+        nonce = entryPointV6.getNonce(_sender, key);
     }
 
     function _compressNonce(uint256 _nonce) internal pure returns (bytes memory compressedNonce) {
@@ -330,7 +330,6 @@ contract EP6Decompressor is IEP6Decompressor {
 
     function _compressInitcode(bytes calldata _initCode, IDecompressor _initCodeDecompressor)
         internal
-        view
         returns (bytes memory compressedInitcode)
     {
         compressedInitcode = DecompressionLib.compress(
@@ -357,7 +356,6 @@ contract EP6Decompressor is IEP6Decompressor {
 
     function _compressCalldata(bytes calldata _calldata, IDecompressor _calldataDecompressor)
         internal
-        view
         returns (bytes memory compressedCalldata)
     {
         compressedCalldata = DecompressionLib.compress(
@@ -384,7 +382,6 @@ contract EP6Decompressor is IEP6Decompressor {
 
     function _compressPaymasterAndData(bytes calldata _paymasterAndData, IDecompressor _paymasterAndDataDecompressor)
         internal
-        view
         returns (bytes memory compressedPaymasterAndData)
     {
         compressedPaymasterAndData = DecompressionLib.compress(
@@ -411,7 +408,6 @@ contract EP6Decompressor is IEP6Decompressor {
 
     function _compressSignature(bytes calldata _signature, IDecompressor _signatureDecompressor)
         internal
-        view
         returns (bytes memory compressedSignature)
     {
         compressedSignature = DecompressionLib.compress(
@@ -543,7 +539,6 @@ contract EP6Decompressor is IEP6Decompressor {
 
     function _compressOp(UserOperation calldata _op, CompressionOptions calldata _option)
         internal
-        view
         returns (bytes memory compressedOp)
     {
         compressedOp = abi.encodePacked(
@@ -564,7 +559,6 @@ contract EP6Decompressor is IEP6Decompressor {
     /// @inheritdoc IEP6Decompressor
     function compressOps(UserOperation[] calldata _ops, CompressionOptions[] calldata _options)
         external
-        view
         override
         returns (bytes memory compressedOps)
     {

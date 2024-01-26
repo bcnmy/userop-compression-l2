@@ -233,8 +233,8 @@ contract EntryPointStub {
         _userOp = ops[0];
     }
 
-    function getNonce(address, uint192) external pure returns (uint256) {
-        return 0;
+    function getNonce(address, uint192 key) external pure returns (uint256) {
+        return 0 | (uint256(key) << 64);
     }
 
     function userOp() external view returns (UserOperation memory) {

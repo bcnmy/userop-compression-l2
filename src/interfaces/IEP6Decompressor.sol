@@ -162,7 +162,6 @@ interface IEP6Decompressor {
      */
     function compressOps(UserOperation[] calldata _ops, CompressionOptions[] calldata _options)
         external
-        view
         returns (bytes memory compressedOp);
 
     /**
