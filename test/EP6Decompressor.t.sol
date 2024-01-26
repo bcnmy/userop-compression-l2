@@ -8,7 +8,6 @@ import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntryp
 import {RegistryLib} from "src/lib/RegistryLib.sol";
 import {BytesLib} from "solidity-bytes-utils/BytesLib.sol";
 import {UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
-import {console2} from "forge-std/console2.sol";
 
 contract EP6DecompressorTest is BaseTest {
     using BytesLib for bytes;
