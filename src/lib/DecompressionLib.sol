@@ -19,6 +19,7 @@ library DecompressionLib {
     enum RESERVED_IDS {
         DO_NOT_DECOMPRESS, // 0x0000
         REGISTER_DECOMPRESSOR_AND_DECOMPRESS // 0x0001
+
     }
 
     function decompress(

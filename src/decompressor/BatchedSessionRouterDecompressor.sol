@@ -56,7 +56,6 @@ contract BatchedSessionRouterDecompressor is IDecompressor {
      *  However, much of that is already taken care of in Session Keys V2 therefore I will not repeat the effort here in this PoC.
      *  This means that there will be significant scope of improvement here in the future.
      */
-
     function decompress(bytes calldata _data) external view override returns (bytes memory signature) {
         // _data:
         // <2 bytes - len(encoded(SessionDatas))> <len bytes - encoded(SessionDatas)> <remaining - encoded(sessionKeySignature)>

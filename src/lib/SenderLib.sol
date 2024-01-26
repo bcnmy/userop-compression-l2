@@ -15,6 +15,7 @@ library SenderLib {
     // Reserved IDs (upto 0x00FF)
     enum RESERVED_IDS {
         REGISTER_SENDER // 0x0000
+
     }
 
     function decompress(

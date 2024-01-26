@@ -12,7 +12,6 @@ interface ISmartAccount {
     /**
      * @notice Throws if zero address has been provided as Entry Point address
      */
-
     error EntryPointCannotBeZero();
 
     /**
