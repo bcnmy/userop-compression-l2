@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {AddressRegistry} from "../AddressRegistry.sol";
+import {AddressRegistry} from "./AddressRegistry.sol";
 import {ISmartAccount} from "../smart-account/ISmartAccount.sol";
-import {IResolver} from "./IResolver.sol";
+import {IDecompressor} from "../interfaces/IDecompressor.sol";
 
-contract BiconomyVerifyingPaymasterResolver is IResolver {
-    bytes32 public registeredId;
+contract BiconomyVerifyingPaymasterDecompressor is IDecompressor {
     address paymaster = 0x00000f79B7FaF42EEBAdbA19aCc07cD08Af44789;
     AddressRegistry public paymasterIdRegistry = new AddressRegistry();
-
-    constructor(AddressRegistry _pmRegistry) {
-        registeredId = _pmRegistry.register(address(this));
-    }
 
     /**
      * Normally, the pnd for Verifying Paymaster is:
@@ -26,16 +21,15 @@ contract BiconomyVerifyingPaymasterResolver is IResolver {
      *       )
      *     )
      *     To compress, we:
-     *     1. Hardcode the paymaster address in this resolver
+     *     1. Hardcode the paymaster address in this Decompressor
      *     2. Replace 20 byte paymasterId with 2 byte id for (65536 unique paymasterIds)
      *     3. Encode signature as it is, but without the initial offset introduced by abi.encode.
      *         Instead encode it as <2 bytes - length><signature>
      */
-
     uint256 constant PID_REPRESENTATION_PRECISION_BYTES = 2;
     uint256 constant SIGNATURE_LENGTH_BYTES = 2;
 
-    function resolve(bytes calldata _data) external view override returns (bytes memory paymasterAndData) {
+    function decompress(bytes calldata _data) external view override returns (bytes memory paymasterAndData) {
         bytes32 paymasterIdId;
         uint48 validUntil;
         uint48 validAfter;
@@ -70,5 +64,19 @@ contract BiconomyVerifyingPaymasterResolver is IResolver {
 
         address paymasterId = paymasterIdRegistry.registry(paymasterIdId);
         paymasterAndData = abi.encodePacked(paymaster, abi.encode(paymasterId, validUntil, validAfter, signature));
+    }
+
+    function compress(bytes calldata _data) external view override returns (bytes memory) {
+        bytes calldata pmData = _data[20:];
+        (address paymasterId, uint48 validUntil, uint48 validAfter, bytes memory signature) =
+            abi.decode(pmData, (address, uint48, uint48, bytes));
+
+        bytes32 paymasterIdId = paymasterIdRegistry.reverseRegistry(paymasterId);
+        if (paymasterIdId == bytes32(0)) {
+            revert("BiconomyVerifyingPaymasterDecompressor: paymasterId not registered");
+        }
+        return abi.encodePacked(
+            uint16(uint256(paymasterIdId)), validUntil, validAfter, uint16(signature.length), signature
+        );
     }
 }

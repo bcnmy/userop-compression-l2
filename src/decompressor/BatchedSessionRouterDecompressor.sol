@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {AddressRegistry} from "../AddressRegistry.sol";
+import {AddressRegistry} from "./AddressRegistry.sol";
 import {ISmartAccount} from "../smart-account/ISmartAccount.sol";
-import {IResolver} from "./IResolver.sol";
+import {IDecompressor} from "../interfaces/IDecompressor.sol";
 import "forge-std/console2.sol";
 
 struct SessionData {
@@ -15,15 +15,13 @@ struct SessionData {
     bytes callSpecificData;
 }
 
-contract BatchedSessionRouterResolver is IResolver {
-    bytes32 public registeredId;
+/**
+ * DISCLAIMER: This is a PoC - not gas optimised
+ */
+contract BatchedSessionRouterDecompressor is IDecompressor {
     address sessionKeyManager = 0x000002FbFfedd9B33F4E7156F2DE8D48945E7489;
     address batchedSessionRouter = 0x00000D09967410f8C76752A104c9848b57ebba55;
     AddressRegistry public svmRegistry = new AddressRegistry();
-
-    constructor(AddressRegistry _pmRegistry) {
-        registeredId = _pmRegistry.register(address(this));
-    }
 
     /**
      * Normally, the user op signature for batched session router is:
@@ -50,8 +48,8 @@ contract BatchedSessionRouterResolver is IResolver {
      * }
      *
      *  There are a series of improvements that can be done here:
-     *  1. Hardcode the batchedSessionRouter address in this resolver
-     *  2. Hardcode the sessionKeyManager address in this resolver
+     *  1. Hardcode the batchedSessionRouter address in this Decompressor
+     *  2. Hardcode the sessionKeyManager address in this Decompressor
      *  3. replace 20 byte sessionValidationModule with 2 byte id for (65536 unique sessionValidationModules)
      *
      *  Note: A lot of other stuff can be done like caching merkle proofs, packing data more efficiently etc.
@@ -59,7 +57,7 @@ contract BatchedSessionRouterResolver is IResolver {
      *  This means that there will be significant scope of improvement here in the future.
      */
 
-    function resolve(bytes calldata _data) external view override returns (bytes memory signature) {
+    function decompress(bytes calldata _data) external view override returns (bytes memory signature) {
         // _data:
         // <2 bytes - len(encoded(SessionDatas))> <len bytes - encoded(SessionDatas)> <remaining - encoded(sessionKeySignature)>
         // yeah ik session key signature can itself be better packed.
@@ -114,7 +112,7 @@ contract BatchedSessionRouterResolver is IResolver {
                 offset := add(offset, div(48, 8))
 
                 bitsToDiscard := sub(256, mul(2, 8))
-                svmId := shr(bitsToDiscard, mload(offset))
+                svmId := shr(bitsToDiscard, calldataload(offset))
                 offset := add(offset, 2)
 
                 // extract dynamic length sessionKeyData
@@ -149,5 +147,41 @@ contract BatchedSessionRouterResolver is IResolver {
         }
 
         signature = abi.encode(abi.encode(sessionKeyManager, sessionDatas, sessionKeySignature), batchedSessionRouter);
+    }
+
+    function compress(bytes calldata _data) external view returns (bytes memory compressedData) {
+        (bytes memory moduleSignature,) = abi.decode(_data, (bytes, address));
+        (, SessionData[] memory sessionDatas, bytes memory sessionKeySignature) =
+            abi.decode(moduleSignature, (address, SessionData[], bytes));
+
+        bytes[] memory compressedSessionDatas = new bytes[](sessionDatas.length);
+
+        for (uint256 i = 0; i < sessionDatas.length; i++) {
+            SessionData memory sessionData = sessionDatas[i];
+            bytes32 svmId = svmRegistry.reverseRegistry(sessionData.sessionValidationModule);
+            if (svmId == bytes32(0)) {
+                revert("BatchedSessionRouterDecompressor: sessionValidationModule not registered");
+            }
+
+            bytes memory encodedMerkleProof = abi.encode(sessionData.merkleProof);
+
+            compressedSessionDatas[i] = abi.encodePacked(
+                sessionData.validUntil,
+                sessionData.validAfter,
+                uint16(uint256(svmId)),
+                uint16(sessionData.sessionKeyData.length),
+                sessionData.sessionKeyData,
+                uint16(encodedMerkleProof.length),
+                encodedMerkleProof,
+                uint16(sessionData.callSpecificData.length),
+                sessionData.callSpecificData
+            );
+        }
+
+        bytes memory encodedCompressedSessionDatas = abi.encode(compressedSessionDatas);
+
+        compressedData = abi.encodePacked(
+            uint16(encodedCompressedSessionDatas.length), encodedCompressedSessionDatas, sessionKeySignature
+        );
     }
 }
