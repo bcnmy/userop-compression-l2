@@ -4,10 +4,10 @@ pragma solidity ^0.8.23;
 import {BaseTest} from "./BaseTest.sol";
 import {EP6Decompressor, IEP6Decompressor} from "src/EP6Decompressor.sol";
 import {IDecompressor} from "src/interfaces/IDecompressor.sol";
-import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {RegistryLib} from "src/lib/RegistryLib.sol";
 import {BytesLib} from "solidity-bytes-utils/BytesLib.sol";
-import {UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {UserOperation} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 contract EP6DecompressorTest is BaseTest {
     using BytesLib for bytes;

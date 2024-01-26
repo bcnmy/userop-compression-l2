@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {IDecompressor} from "./interfaces/IDecompressor.sol";
-import {IEntryPoint, UserOperation, IStakeManager} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {IEntryPoint, UserOperation, IStakeManager} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {BytesLib} from "solidity-bytes-utils/BytesLib.sol";
 import {IEP6Decompressor} from "./interfaces/IEP6Decompressor.sol";
 import {RegistryLib} from "./lib/RegistryLib.sol";

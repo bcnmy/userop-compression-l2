@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {UserOperation} from "account-abstraction/interfaces/IEntryPoint.sol";
 import "forge-std/Test.sol";
 
 contract AssertUtils is Test {

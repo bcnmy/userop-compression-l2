@@ -10,7 +10,7 @@ import {RageTradeSubmitDelayedOrderCalldataDecompressor} from
     "src/decompressor/RageTradeSubmitDelayedOrderCalldataDecompressor.sol";
 import {BatchedSessionRouterDecompressor} from "src/decompressor/BatchedSessionRouterDecompressor.sol";
 import {BiconomyVerifyingPaymasterDecompressor} from "src/decompressor/BiconomyVerifyingPaymasterDecompressor.sol";
-import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 contract RageTradeCompresssionTest is BaseTest {
     EntryPointStub entryPointStub;

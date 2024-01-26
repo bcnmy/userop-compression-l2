@@ -2,7 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {IDecompressor} from "./IDecompressor.sol";
-import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {IEntryPoint, UserOperation} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 /**
  * @title EP6Decompressor

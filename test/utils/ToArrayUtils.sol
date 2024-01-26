@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {UserOperation} from "account-abstraction/interfaces/IEntrypoint.sol";
+import {UserOperation} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {IDecompressor} from "src/interfaces/IDecompressor.sol";
 import {IEP6Decompressor} from "src/interfaces/IEP6Decompressor.sol";
 
