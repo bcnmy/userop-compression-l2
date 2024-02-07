@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import "forge-std/StdCheats.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract MyScript is StdCheats, Script {
+contract TokenBalanceMappingSlotScraper is StdCheats, Script {
     struct TokenScrapeItem {
         IERC20 token;
         string rpcUrl;
